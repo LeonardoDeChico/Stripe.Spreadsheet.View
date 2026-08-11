@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carteira de Customer Success</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#EDF0F5; --card:#FFFFFF; --ink:#0F1E33; --ink-soft:#5B6B82;
+    --rule:#D5DDE8; --ok:#0E7C66; --ok-soft:#DCEDE8;
+    --risco:#B4462F; --risco-soft:#F6E2DC;
+    --atencao:#C0872E; --atencao-soft:#FBF4E7;
+    --focus:#1B4D8F; --focus-soft:#E4ECF7;
+    --shadow:0 1px 2px rgba(15,30,51,.06), 0 8px 24px rgba(15,30,51,.05);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 20px 64px}
+
+  header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
+    padding-bottom:20px;margin-bottom:24px;border-bottom:2px solid var(--ink)}
+  h1{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-size:29px;line-height:1.15;margin:0;letter-spacing:-.015em}
+  .sub{color:var(--ink-soft);font-size:13.5px;margin-top:5px}
+  .btn{display:inline-flex;align-items:center;gap:9px;background:var(--ink);color:#fff;border:0;
+    border-radius:3px;padding:11px 18px;font:500 14px 'IBM Plex Sans',sans-serif;cursor:pointer}
+  .btn:hover{background:#1c3355}
+  .btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--rule)}
+  .btn.ghost:hover{background:var(--card);color:var(--ink)}
+  .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,
+  button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  #fileInput{display:none}
+
+  .drop{background:var(--card);border:2px dashed var(--rule);border-radius:6px;padding:64px 28px;text-align:center}
+  .drop.over{border-color:var(--focus);background:#F5F8FD}
+  .drop h2{font-family:'IBM Plex Serif',serif;font-size:20px;margin:0 0 8px}
+  .drop p{color:var(--ink-soft);margin:0 0 22px;font-size:14px}
+  .cols{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);margin-top:26px;word-break:break-word}
+
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink-soft)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:0 0 26px}
+  .kpi{background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:15px 16px;box-shadow:var(--shadow)}
+  .kpi .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-soft)}
+  .kpi .v{font-family:'IBM Plex Mono',monospace;font-size:29px;font-weight:600;margin-top:5px;letter-spacing:-.02em}
+  .kpi .v.risco{color:var(--risco)} .kpi .v.ok{color:var(--ok)} .kpi .v.atencao{color:var(--atencao)}
+  .kpi .note{font-size:12px;color:var(--ink-soft);margin-top:3px}
+
+  /* agenda */
+  .agenda{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+  @media(max-width:880px){.agenda{grid-template-columns:1fr}}
+  .fila{background:var(--card);border:1px solid var(--rule);border-radius:5px;box-shadow:var(--shadow);
+    display:flex;flex-direction:column;min-height:120px}
+  .fila > h3{font-family:'IBM Plex Serif',serif;font-size:16px;margin:0;padding:15px 16px 12px;
+    border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .fila .cnt{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600}
+  .fila.atrasado > h3{border-bottom-color:var(--risco)} .fila.atrasado .cnt{color:var(--risco)}
+  .fila.hoje > h3{border-bottom-color:var(--focus)} .fila.hoje .cnt{color:var(--focus)}
+  .fila.proximo .cnt{color:var(--ink-soft)}
+  .fila-corpo{overflow-y:auto;max-height:420px}
+  .item{padding:12px 16px;border-bottom:1px solid #EDF1F6;cursor:pointer;width:100%;text-align:left;
+    background:none;border-left:0;border-right:0;border-top:0;font:inherit;color:inherit;display:block}
+  .item:hover{background:#F7F9FC}
+  .item:last-child{border-bottom:0}
+  .item .nome{font-weight:500;font-size:14px}
+  .item .meta{font-size:12.5px;color:var(--ink-soft);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .vazio{padding:26px 16px;color:var(--ink-soft);font-size:13px;text-align:center}
+
+  .pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;
+    padding:2px 6px;border-radius:3px;font-weight:500;white-space:nowrap}
+  .pill.A{background:var(--focus-soft);color:var(--focus)}
+  .pill.B{background:var(--ok-soft);color:var(--ok)}
+  .pill.risco{background:var(--risco-soft);color:var(--risco)}
+  .pill.atencao{background:var(--atencao-soft);color:var(--atencao)}
+  .pill.neutro{background:#EDF1F6;color:var(--ink-soft)}
+
+  /* tabela */
+  .barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .controles{display:flex;gap:8px;flex-wrap:wrap}
+  select,input[type=search]{font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);background:var(--card);
+    border:1px solid var(--rule);border-radius:3px;padding:8px 10px}
+  input[type=search]{min-width:220px}
+  .tabela-scroll{overflow-x:auto;background:var(--card);border:1px solid var(--rule);border-radius:5px;box-shadow:var(--shadow)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.09em;
+    text-transform:uppercase;color:var(--ink-soft);padding:12px 13px;border-bottom:1px solid var(--rule);
+    white-space:nowrap;cursor:pointer;user-select:none;background:var(--card)}
+  th:hover{color:var(--ink)}
+  td{padding:11px 13px;border-bottom:1px solid #EDF1F6;vertical-align:top}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:#F7F9FC}
+  tbody tr:last-child td{border-bottom:0}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px}
+  .num{font-family:'IBM Plex Mono',monospace;text-align:right;white-space:nowrap}
+  .email{color:var(--ink-soft);font-size:12.5px}
+  .muted{color:#A9B6C7}
+
+  /* ficha */
+  .overlay{position:fixed;inset:0;background:rgba(15,30,51,.45);display:flex;justify-content:flex-end;z-index:50}
+  .overlay[hidden]{display:none}
+  .ficha{background:var(--paper);width:min(620px,100%);height:100%;overflow-y:auto;box-shadow:-8px 0 32px rgba(15,30,51,.18)}
+  .ficha-topo{background:var(--card);padding:22px 24px 18px;border-bottom:1px solid var(--rule);
+    position:sticky;top:0;z-index:2}
+  .ficha-topo h2{font-family:'IBM Plex Serif',serif;font-size:22px;margin:0 0 4px}
+  .ficha-corpo{padding:22px 24px 60px}
+  .bloco{background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:16px 18px;margin-bottom:14px}
+  .bloco h4{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
+    color:var(--ink-soft);margin:0 0 12px;font-weight:500}
+  .dados{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
+  .dado .r{font-size:11.5px;color:var(--ink-soft)}
+  .dado .d{font-family:'IBM Plex Mono',monospace;font-size:15px;margin-top:2px}
+  .contato{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+  /* trilha */
+  .etapa{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #EDF1F6;align-items:flex-start}
+  .etapa:last-child{border-bottom:0}
+  .etapa .marca{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--rule);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--card);
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);padding:0}
+  .etapa.feita .marca{background:var(--ok);border-color:var(--ok);color:#fff}
+  .etapa.atual .marca{border-color:var(--focus);border-width:3px;color:var(--focus);font-weight:600}
+  .etapa.futura{opacity:.55}
+  .etapa .txt{flex:1;min-width:0}
+  .etapa .tit{font-size:13.5px;font-weight:500}
+  .etapa.feita .tit{color:var(--ink-soft)}
+  .etapa .obj{font-size:12.5px;color:var(--ink-soft);margin-top:1px}
+  .etapa .quando{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);flex:none;padding-top:3px}
+  textarea{width:100%;font:13.5px 'IBM Plex Sans',sans-serif;border:1px solid var(--rule);border-radius:3px;
+    padding:9px 10px;resize:vertical;min-height:74px;color:var(--ink);background:var(--card)}
+  .hidden{display:none!important}
+  .foot{margin-top:16px;font-size:12.5px;color:var(--ink-soft);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Carteira de Customer Success</h1>
+      <div class="sub" id="subtitle">Carregue a planilha da carteira para começar.</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost" id="exportProg">Salvar progresso</button>
+      <button class="btn ghost" id="importProg">Restaurar</button>
+      <button class="btn" id="pickBtn">Carregar planilha</button>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+      <input type="file" id="progInput" accept=".json" style="display:none">
+    </div>
+  </header>
+
+  <section class="drop" id="dropZone">
+    <h2>Solte a planilha aqui</h2>
+    <p>Saída da query da carteira de CS. Aceita CSV e Excel. Lida no seu navegador, não sai daqui.</p>
+    <button class="btn" id="pickBtn2">Escolher arquivo</button>
+    <div class="cols">colunas esperadas: customer_id · cliente · email · plano · dia_do_ciclo · ciclo_inicio · ciclo_fim · dias_ate_renovacao · meses_pagos · ultimo_pagamento · metodo_pagamento · faturas_abertas · valor_em_aberto · dias_de_atraso · cancelamento_agendado · alerta</div>
+  </section>
+
+  <main id="painel" class="hidden">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="eyebrow" style="margin-bottom:10px">Agenda de toques</div>
+    <div class="agenda">
+      <div class="fila atrasado"><h3>Atrasados <span class="cnt" id="cAtras">0</span></h3><div class="fila-corpo" id="fAtras"></div></div>
+      <div class="fila hoje"><h3>Hoje <span class="cnt" id="cHoje">0</span></h3><div class="fila-corpo" id="fHoje"></div></div>
+      <div class="fila proximo"><h3>Próximos 3 dias <span class="cnt" id="cProx">0</span></h3><div class="fila-corpo" id="fProx"></div></div>
+    </div>
+
+    <div class="barra">
+      <span class="eyebrow" id="contagem">—</span>
+      <div class="controles">
+        <select id="fGrupo">
+          <option value="ativos">Carteira ativa</option>
+          <option value="nunca">Nunca pagaram</option>
+          <option value="">Todos</option>
+        </select>
+        <select id="fAlerta"><option value="">Todos os alertas</option></select>
+        <select id="fMetodo"><option value="">Todos os métodos</option></select>
+        <input type="search" id="fBusca" placeholder="Buscar cliente ou email">
+      </div>
+    </div>
+
+    <div class="tabela-scroll">
+      <table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
+    </div>
+
+    <div class="foot">
+      <span>O progresso das etapas fica salvo neste navegador. Use "Salvar progresso" antes de trocar de máquina.</span>
+      <button class="btn ghost" id="resetBtn" style="padding:4px 10px">Carregar outra planilha</button>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="ficha" role="dialog" aria-modal="true" aria-labelledby="fichaNome">
+    <div class="ficha-topo">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div><h2 id="fichaNome">—</h2><div class="email" id="fichaEmail"></div></div>
+        <button class="btn ghost" id="fecharFicha" style="padding:6px 12px">Fechar</button>
+      </div>
+      <div id="fichaPills" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
+    </div>
+    <div class="ficha-corpo" id="fichaCorpo"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---------- playbook ----------
+  // Espelha o fluxo desenhado. Ajuste aqui que a agenda inteira acompanha.
+  var PLAYBOOK = {
+    A: [
+      {d:0,  t:'Boas-vindas e onboarding', o:'Confirmar pagamento e ativação, checklist de configuração, validar integrações e agendar reunião se necessário'},
+      {d:3,  t:'Primeiro avanço',          o:'Apresentar funcionalidade relevante baseada no uso do cliente'},
+      {d:5,  t:'Verificar frequência',     o:'Checar acesso e incentivar retorno caso esteja inativo'},
+      {d:7,  t:'Fechar onboarding',        o:'Coletar feedback inicial e confirmar percepção de valor'},
+      {d:10, t:'Aumentar adoção',          o:'Ensinar uma nova funcionalidade'},
+      {d:14, t:'Health check',             o:'Login, integrações, uso e funcionalidades'},
+      {d:18, t:'Aprofundar uso',           o:'Mostrar resultados alcançados: pedidos conciliados, economia de tempo'},
+      {d:23, t:'Mostrar resultado',        o:'Apresentar recurso avançado'},
+      {d:27, t:'Preparar renovação',       o:'Preparar renovação e pedir sugestões'},
+      {d:30, t:'Encerrar ciclo',           o:'Coletar feedback e reforçar benefícios'}
+    ],
+    B: [
+      {d:0,  t:'Abrir novo ciclo',         o:'Confirmar pagamento, atualizar próxima renovação, validar plano e chamados abertos'},
+      {d:3,  t:'Verificar continuidade',   o:'Checar se houve login e uso recente; se caiu, mensagem objetiva e oferta de ajuda'},
+      {d:7,  t:'Validar adoção contínua',  o:'Verificar funcionalidade principal, marketplaces conectados, chamados e integrações'},
+      {d:10, t:'Fechar feedback',          o:'Coletar feedback e confirmar percepção de valor'},
+      {d:14, t:'Health check',             o:'Revisar login, integrações, funcionalidades, chamados, erros e plano atual'},
+      {d:18, t:'Mostrar resultado',        o:'Enviar resumo de uso: pedidos conciliados, volume processado, divergências, ganhos operacionais'},
+      {d:21, t:'Decidir caminho',          o:'Verde: expansão. Amarelo: adoção guiada. Vermelho: recuperação'},
+      {d:25, t:'Pré-renovação',            o:'Validar pendências, riscos e percepção de valor antes da cobrança'},
+      {d:27, t:'Fechar ciclo',             o:'Atualizar health score, registrar resultado, risco, ações e próxima ação'}
+    ]
+  };
+
+  var COLS = [
+    {k:'cliente',            t:'Cliente'},
+    {k:'plano',              t:'Trilha'},
+    {k:'dia_do_ciclo',       t:'Dia',      cls:'num', num:true},
+    {k:'proximo_toque',      t:'Próximo toque'},
+    {k:'alerta',             t:'Alerta'},
+    {k:'metodo_pagamento',   t:'Método'},
+    {k:'meses_pagos',        t:'Meses',    cls:'num', num:true},
+    {k:'dias_ate_renovacao', t:'Renova em',cls:'num', num:true}
+  ];
+
+  var MET = {cartao:'Cartão', boleto:'Boleto', pix:'Pix', nao_informado:'Não informado'};
+  var CHAVE_STORE = 'cs_progresso_v1';
+
+  var clientes = [], progresso = {}, sortKey = 'cliente', sortDir = 1, atual = null;
+
+  // ---------- storage ----------
+  function carregarProgresso(){
+    try{ progresso = JSON.parse(localStorage.getItem(CHAVE_STORE) || '{}'); }
+    catch(e){ progresso = {}; }
+  }
+  function salvarProgresso(){
+    try{ localStorage.setItem(CHAVE_STORE, JSON.stringify(progresso)); }
+    catch(e){ /* modo privado ou storage cheio: segue em memória */ }
+  }
+  function progDe(id){
+    if(!progresso[id]) progresso[id] = {feitas:{}, nota:''};
+    if(!progresso[id].feitas) progresso[id].feitas = {};
+    return progresso[id];
+  }
+  // chave da etapa inclui o ciclo, para o Plano B reiniciar a cada renovação
+  function chaveEtapa(c, d){ return (c.ciclo_inicio || 'x') + ':D' + d; }
+
+  // ---------- leitura ----------
+  var fileInput = document.getElementById('fileInput');
+  var dropZone = document.getElementById('dropZone');
+  document.getElementById('pickBtn').onclick  = function(){ fileInput.click(); };
+  document.getElementById('pickBtn2').onclick = function(){ fileInput.click(); };
+  document.getElementById('resetBtn').onclick = function(){
+    document.getElementById('painel').classList.add('hidden');
+    dropZone.classList.remove('hidden');
+    fileInput.value = '';
+  };
+  fileInput.onchange = function(e){ if(e.target.files[0]) ler(e.target.files[0]); };
+  ['dragenter','dragover'].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){ e.preventDefault(); dropZone.classList.add('over'); });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    dropZone.addEventListener(ev, function(e){ e.preventDefault(); dropZone.classList.remove('over'); });
+  });
+  dropZone.addEventListener('drop', function(e){ if(e.dataTransfer.files[0]) ler(e.dataTransfer.files[0]); });
+
+  function ler(file){
+    var nome = (file.name||'').toLowerCase();
+    if(/\.(xlsx|xlsm|xls)$/.test(nome)){
+      var fr = new FileReader();
+      fr.onload = function(e){
+        try{
+          var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+          ingest(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:'', raw:true}), file.name);
+        }catch(err){ alert('Não consegui abrir a planilha.'); }
+      };
+      fr.readAsArrayBuffer(file);
+    } else {
+      Papa.parse(file, {header:true, skipEmptyLines:true, encoding:'UTF-8',
+        complete:function(res){ ingest(res.data||[], file.name); },
+        error:function(){ alert('Não consegui ler o arquivo.'); }});
+    }
+  }
+
+  function pad(n){ return (n<10?'0':'')+n; }
+  function toDate(v){
+    if(v instanceof Date && !isNaN(v)) return v.getFullYear()+'-'+pad(v.getMonth()+1)+'-'+pad(v.getDate());
+    var s = String(v||'').trim();
+    if(!s) return '';
+    if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+    var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if(m) return m[3]+'-'+m[2]+'-'+m[1];
+    var d = new Date(s);
+    return isNaN(d) ? s : d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function num(v){
+    if(typeof v === 'number') return v;
+    var s = String(v||'').replace(/[^\d,.-]/g,'');
+    if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s = s.replace(/\./g,'').replace(',','.');
+    else if(s.indexOf(',')>-1) s = s.replace(',','.');
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  function txt(v){ return v===null||v===undefined ? '' : String(v).trim(); }
+
+  function ingest(data, nomeArquivo){
+    var bruto = (data||[]).filter(function(r){ return r && r.customer_id && r.cliente; });
+    if(!bruto.length){
+      var cols = data && data[0] ? Object.keys(data[0]) : [];
+      alert(cols.indexOf('tipo') > -1
+        ? 'Esta é a planilha de assinantes e churn. Aqui vai a planilha da carteira de CS, com uma linha por cliente.'
+        : 'Não encontrei as colunas "customer_id" e "cliente".' + (cols.length ? '\n\nO arquivo tem: ' + cols.join(', ') : ''));
+      return;
+    }
+
+    clientes = bruto.map(function(r){
+      var c = {
+        customer_id: txt(r.customer_id),
+        cliente: txt(r.cliente),
+        email: txt(r.email),
+        telefone: txt(r.telefone),
+        plano: (txt(r.plano).toUpperCase() === 'A') ? 'A' : 'B',
+        dia_do_ciclo: num(r.dia_do_ciclo),
+        ciclo_inicio: toDate(r.ciclo_inicio),
+        ciclo_fim: toDate(r.ciclo_fim),
+        dias_ate_renovacao: num(r.dias_ate_renovacao),
+        meses_pagos: num(r.meses_pagos),
+        primeiro_pagamento: toDate(r.primeiro_pagamento),
+        ultimo_pagamento: toDate(r.ultimo_pagamento),
+        dias_sem_pagar: num(r.dias_sem_pagar),
+        total_pago: num(r.total_pago),
+        metodo_pagamento: txt(r.metodo_pagamento).toLowerCase() || 'nao_informado',
+        faturas_abertas: num(r.faturas_abertas),
+        valor_em_aberto: num(r.valor_em_aberto),
+        dias_de_atraso: r.dias_de_atraso === '' ? null : num(r.dias_de_atraso),
+        cancelamento_agendado: num(r.cancelamento_agendado) === 1,
+        cobranca_pausada: num(r.cobranca_pausada) === 1,
+        alerta: txt(r.alerta),
+        subscription_id: txt(r.subscription_id),
+        assinou_em: toDate(r.assinou_em)
+      };
+      c.nunca_pagou = c.meses_pagos === 0;
+      return c;
+    });
+
+    clientes.forEach(calcularToque);
+
+    // seletores dinâmicos
+    preencher('fAlerta', uniq(clientes.map(function(c){return c.alerta;})).sort(), 'Todos os alertas');
+    preencher('fMetodo', uniq(clientes.map(function(c){return c.metodo_pagamento;})).sort(), 'Todos os métodos',
+      function(v){ return MET[v] || v; });
+
+    dropZone.classList.add('hidden');
+    document.getElementById('painel').classList.remove('hidden');
+    document.getElementById('subtitle').textContent =
+      clientes.length + ' clientes · ' + clientes.filter(function(c){return !c.nunca_pagou;}).length +
+      ' na carteira ativa · ' + nomeArquivo;
+    montarCabecalho();
+    render();
+  }
+
+  function uniq(a){ return Array.from(new Set(a.filter(function(x){return x !== '' && x != null;}))); }
+  function preencher(id, vals, rotulo, fmt){
+    var el = document.getElementById(id);
+    el.innerHTML = '<option value="">' + rotulo + '</option>' +
+      vals.map(function(v){ return '<option value="'+v+'">' + (fmt ? fmt(v) : v) + '</option>'; }).join('');
+  }
+
+  // ---------- lógica do playbook ----------
+  // Descobre qual etapa está pendente: a primeira não marcada cujo dia já
+  // chegou. Se todas as vencidas foram feitas, aponta a próxima futura.
+  function calcularToque(c){
+    var etapas = PLAYBOOK[c.plano];
+    var p = progDe(c.customer_id);
+    var pendente = null, proxima = null;
+    for(var i=0;i<etapas.length;i++){
+      var e = etapas[i];
+      var feita = !!p.feitas[chaveEtapa(c, e.d)];
+      if(feita) continue;
+      if(e.d <= c.dia_do_ciclo){ pendente = e; break; }
+      if(!proxima) proxima = e;
+    }
+    var alvo = pendente || proxima;
+    c.etapa = alvo;
+    c.proximo_toque = alvo ? ('D' + alvo.d + ' · ' + alvo.t) : 'Ciclo concluído';
+    c.atraso_toque = alvo ? (c.dia_do_ciclo - alvo.d) : null;   // >0 atrasado, 0 hoje, <0 futuro
+    c.fila = !alvo ? 'feito'
+           : c.atraso_toque > 0 ? 'atrasado'
+           : c.atraso_toque === 0 ? 'hoje'
+           : c.atraso_toque >= -3 ? 'proximo' : 'depois';
+  }
+
+  function severidade(c){
+    if(c.cancelamento_agendado) return 'risco';
+    if(c.alerta === 'FATURA VENCIDA' || c.alerta === 'NUNCA PAGOU') return 'risco';
+    if(c.alerta) return 'atencao';
+    return 'neutro';
+  }
+
+  // ---------- render ----------
+  function ativos(){ return clientes.filter(function(c){ return !c.nunca_pagou; }); }
+
+  function render(){
+    var base = ativos();
+    var vencidas = base.filter(function(c){ return c.alerta === 'FATURA VENCIDA'; });
+    var cancel = base.filter(function(c){ return c.cancelamento_agendado; });
+    var atrasadas = base.filter(function(c){ return c.fila === 'atrasado'; });
+    var naoPagos = clientes.filter(function(c){ return c.nunca_pagou; });
+    var emAberto = naoPagos.reduce(function(a,c){ return a + c.valor_em_aberto; }, 0);
+
+    document.getElementById('kpis').innerHTML =
+      kpi('Carteira ativa', base.length, 'ok', 'clientes com pagamento') +
+      kpi('Toques atrasados', atrasadas.length, atrasadas.length ? 'risco' : '', 'etapas vencidas não feitas') +
+      kpi('Cancelamento agendado', cancel.length, cancel.length ? 'risco' : '', 'ainda dá para reverter') +
+      kpi('Fatura vencida', vencidas.length, vencidas.length ? 'atencao' : '', 'churn involuntário') +
+      kpi('Nunca pagaram', naoPagos.length, 'atencao', brl(emAberto) + ' em aberto');
+
+    fila('fAtras','cAtras', base.filter(function(c){return c.fila==='atrasado';}), 'Nenhum toque atrasado.');
+    fila('fHoje','cHoje',   base.filter(function(c){return c.fila==='hoje';}),     'Nada vencendo hoje.');
+    fila('fProx','cProx',   base.filter(function(c){return c.fila==='proximo';}),  'Nada nos próximos 3 dias.');
+
+    tabela();
+  }
+
+  function kpi(k,v,cls,nota){
+    return '<div class="kpi"><div class="k">'+k+'</div><div class="v '+cls+'">'+v+'</div><div class="note">'+nota+'</div></div>';
+  }
+  function brl(v){ return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+
+  function fila(idCorpo, idCnt, lista, vazio){
+    lista.sort(function(a,b){ return (b.atraso_toque||0) - (a.atraso_toque||0); });
+    document.getElementById(idCnt).textContent = lista.length;
+    var el = document.getElementById(idCorpo);
+    if(!lista.length){ el.innerHTML = '<div class="vazio">'+vazio+'</div>'; return; }
+    el.innerHTML = lista.map(function(c){
+      var sev = severidade(c);
+      var quando = c.atraso_toque > 0 ? ('há ' + c.atraso_toque + 'd') :
+                   c.atraso_toque === 0 ? 'hoje' : ('em ' + Math.abs(c.atraso_toque) + 'd');
+      return '<button class="item" data-id="'+esc(c.customer_id)+'">' +
+        '<div class="nome">'+esc(c.cliente)+'</div>' +
+        '<div class="meta">' +
+          '<span class="pill '+c.plano+'">Plano '+c.plano+'</span>' +
+          '<span>D'+c.etapa.d+' · '+esc(c.etapa.t)+'</span>' +
+          '<span class="mono">'+quando+'</span>' +
+          (c.alerta ? '<span class="pill '+sev+'">'+esc(c.alerta)+'</span>' : '') +
+        '</div></button>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('.item'), function(b){
+      b.onclick = function(){ abrirFicha(b.dataset.id); };
+    });
+  }
+
+  function montarCabecalho(){
+    var tr = document.getElementById('thead');
+    tr.innerHTML = '';
+    COLS.forEach(function(c){
+      var th = document.createElement('th');
+      th.textContent = c.t;
+      th.onclick = function(){
+        if(sortKey === c.k) sortDir = -sortDir; else { sortKey = c.k; sortDir = 1; }
+        tabela();
+      };
+      tr.appendChild(th);
+    });
+  }
+
+  function filtrados(){
+    var g = document.getElementById('fGrupo').value;
+    var al = document.getElementById('fAlerta').value;
+    var me = document.getElementById('fMetodo').value;
+    var q = document.getElementById('fBusca').value.trim().toLowerCase();
+    return clientes.filter(function(c){
+      if(g === 'ativos' && c.nunca_pagou) return false;
+      if(g === 'nunca' && !c.nunca_pagou) return false;
+      if(al && c.alerta !== al) return false;
+      if(me && c.metodo_pagamento !== me) return false;
+      if(q && (c.cliente + ' ' + c.email).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+
+  function tabela(){
+    var lista = filtrados().slice();
+    var col = COLS.filter(function(c){return c.k===sortKey;})[0] || COLS[0];
+    lista.sort(function(a,b){
+      var x=a[sortKey], y=b[sortKey];
+      if(col.num) return (x-y)*sortDir;
+      return String(x).localeCompare(String(y),'pt-BR')*sortDir;
+    });
+
+    var tb = document.getElementById('tbody');
+    if(!lista.length){
+      tb.innerHTML = '<tr><td colspan="'+COLS.length+'" style="padding:34px;text-align:center;color:#5B6B82">Nenhum cliente com esses filtros.</td></tr>';
+    } else {
+      tb.innerHTML = lista.map(function(c){
+        return '<tr data-id="'+esc(c.customer_id)+'">' + COLS.map(function(col){
+          return '<td class="'+(col.cls||'')+'">'+celula(c,col)+'</td>';
+        }).join('') + '</tr>';
+      }).join('');
+      Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr){
+        tr.onclick = function(){ abrirFicha(tr.dataset.id); };
+      });
+    }
+    document.getElementById('contagem').textContent = lista.length + ' clientes';
+  }
+
+  function celula(c, col){
+    var v = c[col.k];
+    if(col.k === 'cliente') return esc(c.cliente) + '<div class="email">'+esc(c.email)+'</div>';
+    if(col.k === 'plano') return '<span class="pill '+c.plano+'">'+c.plano+'</span>';
+    if(col.k === 'alerta') return c.alerta ? '<span class="pill '+severidade(c)+'">'+esc(c.alerta)+'</span>' : '<span class="muted">—</span>';
+    if(col.k === 'metodo_pagamento') return MET[c.metodo_pagamento] || c.metodo_pagamento;
+    if(col.k === 'proximo_toque'){
+      var atr = c.atraso_toque;
+      var cor = atr > 0 ? 'risco' : atr === 0 ? 'A' : 'neutro';
+      return '<span class="pill '+cor+'">'+esc(c.proximo_toque)+'</span>';
+    }
+    if(col.k === 'dias_ate_renovacao') return v + 'd';
+    return (v === '' || v === null) ? '<span class="muted">—</span>' : esc(String(v));
+  }
+
+  function esc(s){
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function(m){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
+    });
+  }
+
+  // ---------- ficha ----------
+  var overlay = document.getElementById('overlay');
+  document.getElementById('fecharFicha').onclick = fecharFicha;
+  overlay.onclick = function(e){ if(e.target === overlay) fecharFicha(); };
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && !overlay.hidden) fecharFicha(); });
+  function fecharFicha(){ overlay.hidden = true; atual = null; render(); }
+
+  function abrirFicha(id){
+    var c = clientes.filter(function(x){return x.customer_id === id;})[0];
+    if(!c) return;
+    atual = c;
+    var p = progDe(c.customer_id);
+
+    document.getElementById('fichaNome').textContent = c.cliente;
+    document.getElementById('fichaEmail').textContent = c.email + (c.telefone ? ' · ' + c.telefone : '');
+    document.getElementById('fichaPills').innerHTML =
+      '<span class="pill '+c.plano+'">Plano '+c.plano+'</span>' +
+      '<span class="pill neutro">Dia '+c.dia_do_ciclo+' do ciclo</span>' +
+      '<span class="pill neutro">'+(MET[c.metodo_pagamento]||c.metodo_pagamento)+'</span>' +
+      (c.alerta ? '<span class="pill '+severidade(c)+'">'+esc(c.alerta)+'</span>' : '');
+
+    var etapas = PLAYBOOK[c.plano];
+    var html = '';
+
+    html += '<div class="bloco"><h4>Conta</h4><div class="dados">' +
+      dado('Meses pagos', c.meses_pagos) +
+      dado('Total pago', brl(c.total_pago)) +
+      dado('Último pagamento', c.ultimo_pagamento || '—') +
+      dado('Renova em', c.dias_ate_renovacao + ' dias') +
+      dado('Cliente desde', c.assinou_em || '—') +
+      (c.faturas_abertas ? dado('Em aberto', brl(c.valor_em_aberto) + (c.dias_de_atraso != null ? ' · ' + c.dias_de_atraso + 'd' : '')) : '') +
+      '</div><div class="contato">' +
+      '<button class="btn ghost" data-copiar="'+esc(c.email)+'">Copiar email</button>' +
+      (c.telefone ? '<button class="btn ghost" data-copiar="'+esc(c.telefone)+'">Copiar telefone</button>' : '') +
+      '</div></div>';
+
+    html += '<div class="bloco"><h4>Trilha do ciclo — início em ' + (c.ciclo_inicio || '—') + '</h4>';
+    etapas.forEach(function(e){
+      var feita = !!p.feitas[chaveEtapa(c, e.d)];
+      var cls = feita ? 'feita' : (e.d <= c.dia_do_ciclo ? 'atual' : 'futura');
+      var quando = e.d <= c.dia_do_ciclo ? ('D'+e.d) : ('em ' + (e.d - c.dia_do_ciclo) + 'd');
+      html += '<div class="etapa '+cls+'">' +
+        '<button class="marca" data-dia="'+e.d+'" aria-pressed="'+feita+'" ' +
+          'aria-label="Marcar D'+e.d+'">'+(feita ? '✓' : e.d)+'</button>' +
+        '<div class="txt"><div class="tit">D'+e.d+' · '+esc(e.t)+'</div>' +
+        '<div class="obj">'+esc(e.o)+'</div></div>' +
+        '<div class="quando">'+quando+'</div></div>';
+    });
+    html += '</div>';
+
+    html += '<div class="bloco"><h4>Anotações</h4>' +
+      '<textarea id="nota" placeholder="Registre o que foi conversado, objeções, próximos passos...">' +
+      esc(p.nota || '') + '</textarea></div>';
+
+    document.getElementById('fichaCorpo').innerHTML = html;
+    overlay.hidden = false;
+
+    var corpo = document.getElementById('fichaCorpo');
+    Array.prototype.forEach.call(corpo.querySelectorAll('.marca'), function(b){
+      b.onclick = function(){
+        var k = chaveEtapa(c, parseInt(b.dataset.dia,10));
+        if(p.feitas[k]) delete p.feitas[k]; else p.feitas[k] = new Date().toISOString().slice(0,10);
+        salvarProgresso();
+        calcularToque(c);
+        abrirFicha(c.customer_id);
+      };
+    });
+    Array.prototype.forEach.call(corpo.querySelectorAll('[data-copiar]'), function(b){
+      b.onclick = function(){
+        navigator.clipboard.writeText(b.dataset.copiar).then(function(){
+          var antes = b.textContent; b.textContent = 'Copiado';
+          setTimeout(function(){ b.textContent = antes; }, 1400);
+        });
+      };
+    });
+    var nota = document.getElementById('nota');
+    nota.oninput = function(){ p.nota = nota.value; salvarProgresso(); };
+  }
+
+  function dado(rot, val){
+    return '<div class="dado"><div class="r">'+rot+'</div><div class="d">'+esc(String(val))+'</div></div>';
+  }
+
+  // ---------- exportar / importar progresso ----------
+  document.getElementById('exportProg').onclick = function(){
+    var blob = new Blob([JSON.stringify(progresso, null, 2)], {type:'application/json'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cs-progresso-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  document.getElementById('importProg').onclick = function(){ document.getElementById('progInput').click(); };
+  document.getElementById('progInput').onchange = function(e){
+    var f = e.target.files[0];
+    if(!f) return;
+    var fr = new FileReader();
+    fr.onload = function(ev){
+      try{
+        var dados = JSON.parse(ev.target.result);
+        Object.keys(dados).forEach(function(id){
+          if(!progresso[id]){ progresso[id] = dados[id]; return; }
+          Object.assign(progresso[id].feitas, dados[id].feitas || {});
+          if(dados[id].nota && !progresso[id].nota) progresso[id].nota = dados[id].nota;
+        });
+        salvarProgresso();
+        clientes.forEach(calcularToque);
+        render();
+        alert('Progresso restaurado e combinado com o que já existia neste navegador.');
+      }catch(err){ alert('Arquivo de progresso inválido.'); }
+    };
+    fr.readAsText(f);
+  };
+
+  ['fGrupo','fAlerta','fMetodo'].forEach(function(id){
+    document.getElementById(id).onchange = tabela;
+  });
+  document.getElementById('fBusca').oninput = tabela;
+
+  carregarProgresso();
+})();
+</script>
+</body>
+</html>

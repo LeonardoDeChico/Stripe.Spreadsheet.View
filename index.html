@@ -314,12 +314,13 @@
           <option value="RECUPERADO">Recuperados</option>
           <option value="CHURN">Churn</option>
           <option value="AGUARDANDO">Aguardando</option>
+          <option value="VENCIDO">Vencidos</option>
         </select>
         <select id="fMetodo" aria-label="Filtrar por método de pagamento">
           <option value="">Todos os métodos</option>
         </select>
         <input type="search" id="fBusca" placeholder="Buscar cliente, email ou fatura" aria-label="Buscar">
-        <label class="check"><input type="checkbox" id="fTeste" checked> Ocultar contas de teste</label>
+        <label class="check"><input type="checkbox" id="fTeste" checked> Ocultar contas internas e de teste</label>
         <button class="file-btn" id="exportBtn" style="background:#3A4C64">Baixar filtrado</button>
       </div>
     </div>
@@ -369,7 +370,8 @@
     RETIDO:     {cor:'#0E7C66', rot:'Retidos'},
     RECUPERADO: {cor:'#C0872E', rot:'Recuperados'},
     CHURN:      {cor:'#B4462F', rot:'Churn'},
-    AGUARDANDO: {cor:'#C0872E', rot:'Aguardando'}
+    AGUARDANDO: {cor:'#C0872E', rot:'Aguardando'},
+    VENCIDO:    {cor:'#B4462F', rot:'Vencido'}
   };
   // A composição e o gráfico de evolução usam só as quatro definitivas.
   // AGUARDANDO é estado transitório do mês corrente e aparece à parte.
@@ -527,6 +529,8 @@
         bandeira: txt(r.bandeira),
         fluxo_pagamento: txt(r.fluxo_pagamento),
         proxima_fatura: toDate(r.proxima_fatura),
+        status_assinatura: txt(r.status_assinatura),
+        vencimento_aberto: toDate(r.vencimento_aberto),
         data_finalizacao: toDate(r.data_finalizacao),
         data_baixa: toDate(r.data_baixa),
         invoice_id: txt(r.invoice_id),
@@ -563,9 +567,16 @@
 
   function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
 
+  // Contas da própria empresa. Adicione novos emails aqui.
+  var CONTAS_INTERNAS = [
+    'solucoes.amf@gmail.com'
+  ];
+
   // Heurística para conta de teste. Não apaga nada — só permite ocultar.
   var RE_TESTE = /(teste|test[_\-. ]|@teste\.|dopix|pix@|forum\.com|extendido\.com|heavty|dyleris|manupay|fivejm)/i;
   function ehTeste(r){
+    var email = (r.email || '').toLowerCase();
+    if(CONTAS_INTERNAS.indexOf(email) > -1) return true;
     return RE_TESTE.test((r.cliente || '') + ' ' + (r.email || ''));
   }
 
@@ -674,7 +685,8 @@
       pagantes: uniq(pagos.map(keyOf)).length,
       faturas: pagos.length,
       churn: uniq(churns.map(keyOf)).length,
-      aguardando: uniq(sub.filter(function(r){return r.tipo==='AGUARDANDO';}).map(keyOf)).length,
+      aguardando: uniq(sub.filter(function(r){return r.categoria==='AGUARDANDO';}).map(keyOf)).length,
+      vencidos: uniq(sub.filter(function(r){return r.categoria==='VENCIDO';}).map(keyOf)).length,
       novos: clientes('NOVO'),
       retidos: clientes('RETIDO'),
       recuperados: clientes('RECUPERADO'),
@@ -840,19 +852,28 @@
     var noMes = b.filter(function(r){ return r.mes === ultimo; });
     var pagaram = uniq(noMes.filter(function(r){ return r.tipo === 'PAGO'; }).map(keyOf));
 
-    // No mês corrente o SQL marca como AGUARDANDO; no mês fechado, CHURN.
+    // No mês corrente o SQL marca como AGUARDANDO ou VENCIDO; no fechado, CHURN.
     var temAguardando = noMes.some(function(r){ return r.tipo === 'AGUARDANDO'; });
-    var tipoPendente = temAguardando ? 'AGUARDANDO' : 'CHURN';
     emCurso = emCurso || temAguardando;
 
     // um registro por cliente pendente, o de maior valor
     var mapa = {};
-    noMes.filter(function(r){ return r.tipo === tipoPendente; }).forEach(function(r){
+    noMes.filter(function(r){
+      return temAguardando ? r.tipo === 'AGUARDANDO' : r.tipo === 'CHURN';
+    }).forEach(function(r){
       var k = keyOf(r);
       if(!mapa[k] || r.valor > mapa[k].valor) mapa[k] = r;
     });
-    var pendentes = Object.keys(mapa).map(function(k){ return mapa[k]; })
-      .sort(function(a,b){ return String(a.data_referencia).localeCompare(String(b.data_referencia)); });
+    var pendentes = Object.keys(mapa).map(function(k){ return mapa[k]; });
+
+    // vencidos primeiro, e dentro de cada grupo o pagamento mais antigo antes
+    var ordem = {VENCIDO:0, AGUARDANDO:1, CHURN:2};
+    pendentes.sort(function(a,b){
+      var d = (ordem[a.categoria] || 3) - (ordem[b.categoria] || 3);
+      if(d) return d;
+      return String(a.data_referencia).localeCompare(String(b.data_referencia));
+    });
+    var vencidos = pendentes.filter(function(r){ return r.categoria === 'VENCIDO'; }).length;
 
     var recebido = noMes.filter(function(r){ return r.tipo === 'PAGO'; })
                         .reduce(function(a,r){ return a + r.valor; }, 0);
@@ -870,8 +891,12 @@
     document.getElementById('mesAtualResumo').innerHTML =
       '<span><i style="background:'+CAT.RETIDO.cor+'"></i>' + pagaram.length + ' de ' + total +
         ' pagaram · ' + brl(recebido) + '</span>' +
-      '<span><i style="background:'+(emCurso ? CAT.AGUARDANDO.cor : CAT.CHURN.cor)+'"></i>' +
-        pendentes.length + (emCurso ? ' aguardando · ' : ' churn · ') + brl(pendente) + '</span>';
+      (emCurso
+        ? (vencidos ? '<span><i style="background:'+CAT.VENCIDO.cor+'"></i>' + vencidos + ' vencidos</span>' : '') +
+          '<span><i style="background:'+CAT.AGUARDANDO.cor+'"></i>' +
+            (pendentes.length - vencidos) + ' no prazo · ' + brl(pendente) + '</span>'
+        : '<span><i style="background:'+CAT.CHURN.cor+'"></i>' +
+            pendentes.length + ' churn · ' + brl(pendente) + '</span>');
 
     var corpo = document.getElementById('mesAtualCorpo');
     if(!pendentes.length){
@@ -881,10 +906,12 @@
 
     corpo.innerHTML = '<div class="pend">' + pendentes.map(function(r){
       var mt = MET[r.metodo_pagamento] || {cor:'#5B6B82', rot:r.metodo_pagamento || 'sem método'};
+      var st = CAT[r.categoria];
       return '<div class="item">' +
         '<div class="n">' + esc(r.cliente || '—') + '</div>' +
         '<div class="e">' + esc(r.email || '') + '</div>' +
         '<div class="i">' +
+          (st ? '<span class="tag" style="background:'+st.cor+'1A;color:'+st.cor+'">'+st.rot+'</span>' : '') +
           '<span class="tag" style="background:'+mt.cor+'1A;color:'+mt.cor+'">'+esc(mt.rot)+'</span>' +
           '<span>' + brl(r.valor) + '</span>' +
           (r.data_referencia ? '<span>último ' + esc(brData(r.data_referencia)) + '</span>' : '') +
@@ -1151,7 +1178,7 @@
   document.getElementById('exportBtn').onclick = function(){
     var list = currentRows();
     if(!list.length){ alert('Não há linhas para exportar com os filtros atuais.'); return; }
-    var keys = ['mes','tipo','categoria','cliente','email','data_referencia','valor','currency','metodo_pagamento','bandeira','fluxo_pagamento','proxima_fatura','data_finalizacao','data_baixa','invoice_id','customer_id'];
+    var keys = ['mes','tipo','categoria','cliente','email','data_referencia','valor','currency','metodo_pagamento','bandeira','fluxo_pagamento','proxima_fatura','status_assinatura','vencimento_aberto','data_finalizacao','data_baixa','invoice_id','customer_id'];
     var csv = keys.join(',') + '\n' + list.map(function(r){
       return keys.map(function(k){ return '"' + String(r[k]).replace(/"/g,'""') + '"'; }).join(',');
     }).join('\n');

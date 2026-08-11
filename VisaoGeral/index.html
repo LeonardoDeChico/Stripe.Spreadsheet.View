@@ -151,6 +151,13 @@
   .taxa{display:inline-block;padding:2px 7px;border-radius:3px;font-weight:500}
   .barra{height:4px;border-radius:2px;background:var(--rule);margin-top:5px;overflow:hidden}
   .barra i{display:block;height:100%;background:var(--churn)}
+  .pend{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px;margin-top:6px}
+  .pend .item{border:1px solid var(--rule);border-radius:4px;padding:10px 12px;background:#FDFDFE}
+  .pend .n{font-size:13.5px;font-weight:500;line-height:1.25}
+  .pend .e{font-size:11.5px;color:var(--ink-soft);word-break:break-all;margin-top:1px}
+  .pend .i{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
+    margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tudo-pago{padding:22px 4px;color:var(--pago);font-size:13.5px}
   .canvas-box{position:relative;height:262px}
   .canvas-box.tall{height:300px}
   .panel.wide{margin-bottom:16px}
@@ -226,7 +233,7 @@
     <h2>Solte o arquivo aqui</h2>
     <p>Ou use o botão acima. Aceita CSV e Excel (.xlsx). O arquivo é lido no seu navegador e não sai daqui.</p>
     <button class="file-btn" id="pickBtn2">Escolher arquivo</button>
-    <div class="cols">colunas esperadas: mes · tipo · categoria · cliente · email · data_referencia · valor · currency · metodo_pagamento · bandeira · fluxo_pagamento · data_finalizacao · data_baixa · invoice_id · customer_id</div>
+    <div class="cols">colunas esperadas: mes · tipo · categoria · cliente · email · data_referencia · valor · currency · metodo_pagamento · bandeira · fluxo_pagamento · proxima_fatura · data_finalizacao · data_baixa · invoice_id · customer_id</div>
   </section>
 
   <!-- painel -->
@@ -240,6 +247,17 @@
 
     <div class="kpis kpis-main" id="kpisMain"></div>
     <div class="kpis kpis-sub" id="kpisSub"></div>
+
+    <div class="panel wide" id="mesAtualPanel">
+      <div class="panel-head">
+        <div>
+          <h3 id="mesAtualTitulo">Situação do mês</h3>
+          <p class="hint" id="mesAtualHint"></p>
+        </div>
+        <div class="legend" id="mesAtualResumo"></div>
+      </div>
+      <div id="mesAtualCorpo"></div>
+    </div>
 
     <div class="panel wide">
       <div class="panel-head">
@@ -295,6 +313,7 @@
           <option value="RETIDO">Retidos</option>
           <option value="RECUPERADO">Recuperados</option>
           <option value="CHURN">Churn</option>
+          <option value="AGUARDANDO">Aguardando</option>
         </select>
         <select id="fMetodo" aria-label="Filtrar por método de pagamento">
           <option value="">Todos os métodos</option>
@@ -330,9 +349,10 @@
     {k:'categoria',      t:'Categoria'},
     {k:'cliente',        t:'Cliente'},
     {k:'metodo_pagamento',t:'Método'},
-    {k:'data_referencia',t:'Data',       cls:'mono'},
+    {k:'data_referencia',t:'Data',       cls:'mono', data:true},
     {k:'valor',          t:'Valor',      cls:'num', num:true},
-    {k:'data_finalizacao',t:'Finalizada',cls:'mono'},
+    {k:'proxima_fatura', t:'Próx. fatura', cls:'mono', data:true},
+    {k:'data_finalizacao',t:'Finalizada',cls:'mono', data:true},
     {k:'invoice_id',     t:'Fatura',     cls:'mono'}
   ];
 
@@ -348,9 +368,15 @@
     NOVO:       {cor:'#1B4D8F', rot:'Novos'},
     RETIDO:     {cor:'#0E7C66', rot:'Retidos'},
     RECUPERADO: {cor:'#C0872E', rot:'Recuperados'},
-    CHURN:      {cor:'#B4462F', rot:'Churn'}
+    CHURN:      {cor:'#B4462F', rot:'Churn'},
+    AGUARDANDO: {cor:'#C0872E', rot:'Aguardando'}
   };
+  // A composição e o gráfico de evolução usam só as quatro definitivas.
+  // AGUARDANDO é estado transitório do mês corrente e aparece à parte.
   var CAT_ORDEM = ['NOVO','RETIDO','RECUPERADO','CHURN'];
+
+  // Só entram meses a partir daqui. Ajuste se mudar o recorte histórico.
+  var CORTE = '2024-09';
 
   var C = {
     pago:  cssVar('--pago'),
@@ -461,6 +487,14 @@
 
   function txt(v){ return v === null || v === undefined ? '' : String(v).trim(); }
 
+  // Exibição em dd/mm/aaaa. Internamente as datas seguem em ISO, porque é
+  // o formato que ordena corretamente como texto.
+  function brData(iso){
+    if(!iso) return '';
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[3]+'/'+m[2]+'/'+m[1] : String(iso);
+  }
+
   function ingest(data, nomeArquivo){
     var limpo = (data||[]).filter(function(r){ return r && r.tipo && r.mes; });
     if(!limpo.length){
@@ -492,12 +526,18 @@
         metodo_pagamento: txt(r.metodo_pagamento).toLowerCase(),
         bandeira: txt(r.bandeira),
         fluxo_pagamento: txt(r.fluxo_pagamento),
+        proxima_fatura: toDate(r.proxima_fatura),
         data_finalizacao: toDate(r.data_finalizacao),
         data_baixa: toDate(r.data_baixa),
         invoice_id: txt(r.invoice_id),
         customer_id: txt(r.customer_id)
       };
-    }).filter(function(r){ return r.mes; });
+    }).filter(function(r){ return r.mes && r.mes >= CORTE; });
+
+    if(!rows.length){
+      alert('Nenhum registro a partir de ' + CORTE + '. Ajuste a constante CORTE no arquivo ou o intervalo da consulta.');
+      return;
+    }
 
     rows.forEach(function(r){ r.teste = ehTeste(r); });
 
@@ -584,7 +624,7 @@
 
     strip.appendChild(chip('Todos', '', totalPagantes(), 0, 0));
     stats.forEach(function(s, i){
-      strip.appendChild(chip(label(meses[i]), meses[i], s.pagantes, s.pagantes, s.churn));
+      strip.appendChild(chip(label(meses[i]), meses[i], s.pagantes, s.pagantes, s.churn + s.aguardando));
     });
     syncChips();
   }
@@ -634,6 +674,7 @@
       pagantes: uniq(pagos.map(keyOf)).length,
       faturas: pagos.length,
       churn: uniq(churns.map(keyOf)).length,
+      aguardando: uniq(sub.filter(function(r){return r.tipo==='AGUARDANDO';}).map(keyOf)).length,
       novos: clientes('NOVO'),
       retidos: clientes('RETIDO'),
       recuperados: clientes('RECUPERADO'),
@@ -681,6 +722,7 @@
     document.getElementById('pieHint').textContent =
       'Clientes distintos em ' + escopo + '.';
 
+    drawMesAtual();
     drawEvo();
     drawPies(s);
     drawMatriz();
@@ -783,6 +825,72 @@
     document.getElementById('matrizHint').textContent =
       'Comportamento de cada forma de pagamento em ' + (mesSel ? label(mesSel) : 'todo o período') +
       '. O churn herda o método do último pagamento.';
+  }
+
+  // Situação do mês mais recente do arquivo.
+  // Enquanto o mês não fecha, quem está marcado como CHURN nele ainda não
+  // é churn: é quem pagou no mês passado e ainda não pagou neste.
+  function drawMesAtual(){
+    var b = base();
+    var ultimo = meses[meses.length-1];
+    var hoje = new Date();
+    var mesReal = hoje.getFullYear() + '-' + pad(hoje.getMonth()+1);
+    var emCurso = (ultimo === mesReal);
+
+    var noMes = b.filter(function(r){ return r.mes === ultimo; });
+    var pagaram = uniq(noMes.filter(function(r){ return r.tipo === 'PAGO'; }).map(keyOf));
+
+    // No mês corrente o SQL marca como AGUARDANDO; no mês fechado, CHURN.
+    var temAguardando = noMes.some(function(r){ return r.tipo === 'AGUARDANDO'; });
+    var tipoPendente = temAguardando ? 'AGUARDANDO' : 'CHURN';
+    emCurso = emCurso || temAguardando;
+
+    // um registro por cliente pendente, o de maior valor
+    var mapa = {};
+    noMes.filter(function(r){ return r.tipo === tipoPendente; }).forEach(function(r){
+      var k = keyOf(r);
+      if(!mapa[k] || r.valor > mapa[k].valor) mapa[k] = r;
+    });
+    var pendentes = Object.keys(mapa).map(function(k){ return mapa[k]; })
+      .sort(function(a,b){ return String(a.data_referencia).localeCompare(String(b.data_referencia)); });
+
+    var recebido = noMes.filter(function(r){ return r.tipo === 'PAGO'; })
+                        .reduce(function(a,r){ return a + r.valor; }, 0);
+    var pendente = pendentes.reduce(function(a,r){ return a + r.valor; }, 0);
+    var total = pagaram.length + pendentes.length;
+
+    document.getElementById('mesAtualTitulo').textContent =
+      emCurso ? 'Situação de ' + label(ultimo) + ' — mês em curso'
+              : 'Situação de ' + label(ultimo) + ' — mês fechado';
+
+    document.getElementById('mesAtualHint').textContent = emCurso
+      ? 'Aguardando pagamento: pagaram no mês passado e ainda não pagaram neste. Só viram churn quando o mês fechar.'
+      : 'Mês já encerrado: quem não pagou é churn confirmado.';
+
+    document.getElementById('mesAtualResumo').innerHTML =
+      '<span><i style="background:'+CAT.RETIDO.cor+'"></i>' + pagaram.length + ' de ' + total +
+        ' pagaram · ' + brl(recebido) + '</span>' +
+      '<span><i style="background:'+(emCurso ? CAT.AGUARDANDO.cor : CAT.CHURN.cor)+'"></i>' +
+        pendentes.length + (emCurso ? ' aguardando · ' : ' churn · ') + brl(pendente) + '</span>';
+
+    var corpo = document.getElementById('mesAtualCorpo');
+    if(!pendentes.length){
+      corpo.innerHTML = '<div class="tudo-pago">Todos os clientes do mês anterior já pagaram.</div>';
+      return;
+    }
+
+    corpo.innerHTML = '<div class="pend">' + pendentes.map(function(r){
+      var mt = MET[r.metodo_pagamento] || {cor:'#5B6B82', rot:r.metodo_pagamento || 'sem método'};
+      return '<div class="item">' +
+        '<div class="n">' + esc(r.cliente || '—') + '</div>' +
+        '<div class="e">' + esc(r.email || '') + '</div>' +
+        '<div class="i">' +
+          '<span class="tag" style="background:'+mt.cor+'1A;color:'+mt.cor+'">'+esc(mt.rot)+'</span>' +
+          '<span>' + brl(r.valor) + '</span>' +
+          (r.data_referencia ? '<span>último ' + esc(brData(r.data_referencia)) + '</span>' : '') +
+          (r.proxima_fatura ? '<span>cobra ' + esc(brData(r.proxima_fatura)) + '</span>' : '') +
+        '</div></div>';
+    }).join('') + '</div>';
   }
 
   function drawEvo(){
@@ -1014,9 +1122,10 @@
     }
     if(c.k === 'invoice_id') return v ? '<span title="'+esc(v)+'">'+esc(v.slice(0,14))+'…</span>' : '<span class="muted">—</span>';
     if(c.k === 'valor') return brl(r.valor);
+    if(c.data) return v ? esc(brData(v)) : '<span class="muted">—</span>';
     return v ? esc(v) : '<span class="muted">—</span>';
   }
-//
+
   function esc(s){
     return String(s).replace(/[&<>"]/g, function(m){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
@@ -1042,7 +1151,7 @@
   document.getElementById('exportBtn').onclick = function(){
     var list = currentRows();
     if(!list.length){ alert('Não há linhas para exportar com os filtros atuais.'); return; }
-    var keys = ['mes','tipo','categoria','cliente','email','data_referencia','valor','currency','metodo_pagamento','bandeira','fluxo_pagamento','data_finalizacao','data_baixa','invoice_id','customer_id'];
+    var keys = ['mes','tipo','categoria','cliente','email','data_referencia','valor','currency','metodo_pagamento','bandeira','fluxo_pagamento','proxima_fatura','data_finalizacao','data_baixa','invoice_id','customer_id'];
     var csv = keys.join(',') + '\n' + list.map(function(r){
       return keys.map(function(k){ return '"' + String(r[k]).replace(/"/g,'""') + '"'; }).join(',');
     }).join('\n');

@@ -3,139 +3,214 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Carteira de Customer Success</title>
+<title>Assinantes e churn</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
-    --paper:#EDF0F5; --card:#FFFFFF; --ink:#0F1E33; --ink-soft:#5B6B82;
-    --rule:#D5DDE8; --ok:#0E7C66; --ok-soft:#DCEDE8;
-    --risco:#B4462F; --risco-soft:#F6E2DC;
-    --atencao:#C0872E; --atencao-soft:#FBF4E7;
-    --focus:#1B4D8F; --focus-soft:#E4ECF7;
+    --paper:#EDF0F5;
+    --card:#FFFFFF;
+    --ink:#0F1E33;
+    --ink-soft:#5B6B82;
+    --rule:#D5DDE8;
+    --pago:#0E7C66;
+    --pago-soft:#DCEDE8;
+    --churn:#B4462F;
+    --churn-soft:#F6E2DC;
+    --fora:#C0872E;
+    --focus:#1B4D8F;
     --shadow:0 1px 2px rgba(15,30,51,.06), 0 8px 24px rgba(15,30,51,.05);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
-  body{background:var(--paper);color:var(--ink);font-family:'IBM Plex Sans',system-ui,sans-serif;
-    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    font-size:15px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
   .wrap{max-width:1180px;margin:0 auto;padding:32px 20px 64px}
 
-  header.top{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;
-    padding-bottom:20px;margin-bottom:24px;border-bottom:2px solid var(--ink)}
-  h1{font-family:'IBM Plex Serif',Georgia,serif;font-weight:600;font-size:29px;line-height:1.15;margin:0;letter-spacing:-.015em}
+  /* ---------- cabeçalho ---------- */
+  header.top{
+    display:flex;flex-wrap:wrap;gap:16px;
+    align-items:flex-end;justify-content:space-between;
+    padding-bottom:20px;margin-bottom:24px;
+    border-bottom:2px solid var(--ink);
+  }
+  h1{
+    font-family:'IBM Plex Serif',Georgia,serif;
+    font-weight:600;font-size:29px;line-height:1.15;margin:0;
+    letter-spacing:-.015em;
+  }
   .sub{color:var(--ink-soft);font-size:13.5px;margin-top:5px}
-  .btn{display:inline-flex;align-items:center;gap:9px;background:var(--ink);color:#fff;border:0;
-    border-radius:3px;padding:11px 18px;font:500 14px 'IBM Plex Sans',sans-serif;cursor:pointer}
-  .btn:hover{background:#1c3355}
-  .btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--rule)}
-  .btn.ghost:hover{background:var(--card);color:var(--ink)}
-  .btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,
-  button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  .file-btn{
+    display:inline-flex;align-items:center;gap:9px;
+    background:var(--ink);color:#fff;border:0;border-radius:3px;
+    padding:11px 18px;font:500 14px 'IBM Plex Sans',sans-serif;
+    cursor:pointer;
+  }
+  .file-btn:hover{background:#1c3355}
+  .file-btn:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{
+    outline:2px solid var(--focus);outline-offset:2px
+  }
   #fileInput{display:none}
 
-  .drop{background:var(--card);border:2px dashed var(--rule);border-radius:6px;padding:64px 28px;text-align:center}
+  /* ---------- área de carga ---------- */
+  .drop{
+    background:var(--card);border:2px dashed var(--rule);border-radius:6px;
+    padding:64px 28px;text-align:center;
+  }
   .drop.over{border-color:var(--focus);background:#F5F8FD}
   .drop h2{font-family:'IBM Plex Serif',serif;font-size:20px;margin:0 0 8px}
   .drop p{color:var(--ink-soft);margin:0 0 22px;font-size:14px}
-  .cols{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);margin-top:26px;word-break:break-word}
+  .cols{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-soft);
+    margin-top:26px;word-break:break-word;
+  }
 
-  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.13em;
-    text-transform:uppercase;color:var(--ink-soft)}
+  /* ---------- régua de meses ---------- */
+  .strip-head{
+    display:flex;align-items:baseline;justify-content:space-between;
+    margin-bottom:10px;gap:12px;flex-wrap:wrap;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--ink-soft);
+  }
+  .strip{
+    display:flex;gap:5px;overflow-x:auto;padding:4px 2px 10px;
+    scrollbar-width:thin;
+  }
+  .mchip{
+    flex:1 1 0;min-width:74px;background:var(--card);border:1px solid var(--rule);
+    border-radius:4px;padding:9px 8px 8px;cursor:pointer;text-align:left;
+    font:inherit;color:inherit;transition:border-color .12s,transform .12s;
+  }
+  .mchip:hover{border-color:#9DAFC6}
+  .mchip[aria-pressed="true"]{border-color:var(--ink);border-width:2px;padding:8px 7px 7px}
+  .mchip .lbl{font-family:'IBM Plex Mono',monospace;font-size:11.5px;letter-spacing:.02em}
+  .mchip .num{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;line-height:1.2}
+  .bar{display:flex;height:5px;border-radius:3px;overflow:hidden;background:var(--rule);margin-top:7px}
+  .bar i{display:block;height:100%}
+  .bar .p{background:var(--pago)}
+  .bar .c{background:var(--churn)}
 
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:0 0 26px}
+  /* ---------- KPIs ---------- */
+  .kpis{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
+    gap:12px;margin:22px 0 12px;
+  }
+  .kpis-main{grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+  .kpis-sub{margin-top:0;margin-bottom:24px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .kpis-sub .kpi{padding:11px 13px;background:transparent;box-shadow:none;border-style:dashed}
+  .kpis-sub .kpi .v{font-size:20px}
+  .kpis-main .kpi .v{font-size:32px}
   .kpi{background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:15px 16px;box-shadow:var(--shadow)}
   .kpi .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink-soft)}
-  .kpi .v{font-family:'IBM Plex Mono',monospace;font-size:29px;font-weight:600;margin-top:5px;letter-spacing:-.02em}
-  .kpi .v.risco{color:var(--risco)} .kpi .v.ok{color:var(--ok)} .kpi .v.atencao{color:var(--atencao)}
+  .kpi .v{font-family:'IBM Plex Mono',monospace;font-size:27px;font-weight:600;margin-top:5px;letter-spacing:-.02em}
+  .kpi .v.pago{color:var(--pago)}
+  .kpi .v.novo{color:#1B4D8F}
+  .kpi .v.recuperado{color:var(--fora)}
+  .kpi .v.churn{color:var(--churn)}
   .kpi .note{font-size:12px;color:var(--ink-soft);margin-top:3px}
 
-  /* agenda */
-  .agenda{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
-  @media(max-width:880px){.agenda{grid-template-columns:1fr}}
-  .fila{background:var(--card);border:1px solid var(--rule);border-radius:5px;box-shadow:var(--shadow);
-    display:flex;flex-direction:column;min-height:120px}
-  .fila > h3{font-family:'IBM Plex Serif',serif;font-size:16px;margin:0;padding:15px 16px 12px;
-    border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-  .fila .cnt{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600}
-  .fila.atrasado > h3{border-bottom-color:var(--risco)} .fila.atrasado .cnt{color:var(--risco)}
-  .fila.hoje > h3{border-bottom-color:var(--focus)} .fila.hoje .cnt{color:var(--focus)}
-  .fila.proximo .cnt{color:var(--ink-soft)}
-  .fila-corpo{overflow-y:auto;max-height:420px}
-  .item{padding:12px 16px;border-bottom:1px solid #EDF1F6;cursor:pointer;width:100%;text-align:left;
-    background:none;border-left:0;border-right:0;border-top:0;font:inherit;color:inherit;display:block}
-  .item:hover{background:#F7F9FC}
-  .item:last-child{border-bottom:0}
-  .item .nome{font-weight:500;font-size:14px}
-  .item .meta{font-size:12.5px;color:var(--ink-soft);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .vazio{padding:26px 16px;color:var(--ink-soft);font-size:13px;text-align:center}
+  /* ---------- gráficos ---------- */
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:26px}
+  @media(max-width:760px){.charts{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:18px 18px 12px;box-shadow:var(--shadow)}
+  .panel h3{font-family:'IBM Plex Serif',serif;font-size:16px;margin:0 0 2px;font-weight:600}
+  .panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .seg{display:flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden;flex:none}
+  .seg button{
+    background:var(--card);border:0;padding:6px 11px;cursor:pointer;color:var(--ink-soft);
+    font:500 11.5px 'IBM Plex Mono',monospace;letter-spacing:.05em;
+  }
+  .seg button + button{border-left:1px solid var(--rule)}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+  .panel .hint{font-size:12.5px;color:var(--ink-soft);margin:0 0 12px}
+  .matriz-scroll{overflow-x:auto;margin-top:6px}
+  table.matriz{border-collapse:collapse;width:100%;font-size:13.5px}
+  table.matriz th{
+    text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);
+    padding:9px 12px;border-bottom:1px solid var(--rule);white-space:nowrap;
+    position:static;cursor:default;background:transparent;
+  }
+  table.matriz th:first-child{text-align:left}
+  table.matriz td{padding:11px 12px;border-bottom:1px solid #EDF1F6;text-align:right;
+    font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+  table.matriz td:first-child{text-align:left;font-family:'IBM Plex Sans',sans-serif}
+  table.matriz tr:last-child td{border-bottom:0;font-weight:600;border-top:2px solid var(--ink)}
+  .taxa{display:inline-block;padding:2px 7px;border-radius:3px;font-weight:500}
+  .barra{height:4px;border-radius:2px;background:var(--rule);margin-top:5px;overflow:hidden}
+  .barra i{display:block;height:100%;background:var(--churn)}
+  .pend{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:9px;margin-top:6px}
+  .pend .item{border:1px solid var(--rule);border-radius:4px;padding:10px 12px;background:#FDFDFE}
+  .pend .n{font-size:13.5px;font-weight:500;line-height:1.25}
+  .pend .e{font-size:11.5px;color:var(--ink-soft);word-break:break-all;margin-top:1px}
+  .pend .i{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
+    margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tudo-pago{padding:22px 4px;color:var(--pago);font-size:13.5px}
+  .canvas-box{position:relative;height:262px}
+  .canvas-box.tall{height:300px}
+  .panel.wide{margin-bottom:16px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .legend span{display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft)}
+  .legend i{width:9px;height:9px;border-radius:2px;display:block}
+  .empty-chart{
+    display:flex;align-items:center;justify-content:center;height:262px;
+    color:var(--ink-soft);font-size:13px;
+  }
 
-  .pill{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;
-    padding:2px 6px;border-radius:3px;font-weight:500;white-space:nowrap}
-  .pill.A{background:var(--focus-soft);color:var(--focus)}
-  .pill.B{background:var(--ok-soft);color:var(--ok)}
-  .pill.risco{background:var(--risco-soft);color:var(--risco)}
-  .pill.atencao{background:var(--atencao-soft);color:var(--atencao)}
-  .pill.neutro{background:#EDF1F6;color:var(--ink-soft)}
-
-  /* tabela */
-  .barra{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .controles{display:flex;gap:8px;flex-wrap:wrap}
-  select,input[type=search]{font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);background:var(--card);
-    border:1px solid var(--rule);border-radius:3px;padding:8px 10px}
-  input[type=search]{min-width:220px}
-  .tabela-scroll{overflow-x:auto;background:var(--card);border:1px solid var(--rule);border-radius:5px;box-shadow:var(--shadow)}
+  /* ---------- tabela ---------- */
+  .tbl-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap}
+  select,input[type=search]{
+    font:14px 'IBM Plex Sans',sans-serif;color:var(--ink);
+    background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:8px 10px;
+  }
+  input[type=search]{min-width:210px}
+  .check{display:flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-soft);
+    background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:8px 11px;cursor:pointer}
+  .check input{accent-color:var(--focus);cursor:pointer}
+  .table-scroll{overflow-x:auto;background:var(--card);border:1px solid var(--rule);border-radius:5px;box-shadow:var(--shadow)}
   table{border-collapse:collapse;width:100%;font-size:13.5px}
-  th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.09em;
-    text-transform:uppercase;color:var(--ink-soft);padding:12px 13px;border-bottom:1px solid var(--rule);
-    white-space:nowrap;cursor:pointer;user-select:none;background:var(--card)}
+  th{
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);
+    padding:12px 13px;border-bottom:1px solid var(--rule);white-space:nowrap;
+    cursor:pointer;user-select:none;background:var(--card);position:sticky;top:0;
+  }
   th:hover{color:var(--ink)}
+  th .arrow{opacity:.45;font-size:9px;margin-left:3px}
   td{padding:11px 13px;border-bottom:1px solid #EDF1F6;vertical-align:top}
-  tbody tr{cursor:pointer}
-  tbody tr:hover{background:#F7F9FC}
   tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#F7F9FC}
+  .tag{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    letter-spacing:.07em;padding:3px 7px;border-radius:3px;font-weight:500;
+  }
+  .tag.PAGO{background:var(--pago-soft);color:var(--pago)}
+  .tag.CHURN{background:var(--churn-soft);color:var(--churn)}
   .mono{font-family:'IBM Plex Mono',monospace;font-size:12.5px}
   .num{font-family:'IBM Plex Mono',monospace;text-align:right;white-space:nowrap}
-  .email{color:var(--ink-soft);font-size:12.5px}
   .muted{color:#A9B6C7}
-
-  /* ficha */
-  .overlay{position:fixed;inset:0;background:rgba(15,30,51,.45);display:flex;justify-content:flex-end;z-index:50}
-  .overlay[hidden]{display:none}
-  .ficha{background:var(--paper);width:min(620px,100%);height:100%;overflow-y:auto;box-shadow:-8px 0 32px rgba(15,30,51,.18)}
-  .ficha-topo{background:var(--card);padding:22px 24px 18px;border-bottom:1px solid var(--rule);
-    position:sticky;top:0;z-index:2}
-  .ficha-topo h2{font-family:'IBM Plex Serif',serif;font-size:22px;margin:0 0 4px}
-  .ficha-corpo{padding:22px 24px 60px}
-  .bloco{background:var(--card);border:1px solid var(--rule);border-radius:5px;padding:16px 18px;margin-bottom:14px}
-  .bloco h4{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
-    color:var(--ink-soft);margin:0 0 12px;font-weight:500}
-  .dados{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px}
-  .dado .r{font-size:11.5px;color:var(--ink-soft)}
-  .dado .d{font-family:'IBM Plex Mono',monospace;font-size:15px;margin-top:2px}
-  .contato{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-
-  /* trilha */
-  .etapa{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid #EDF1F6;align-items:flex-start}
-  .etapa:last-child{border-bottom:0}
-  .etapa .marca{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--rule);
-    display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--card);
-    font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-soft);padding:0}
-  .etapa.feita .marca{background:var(--ok);border-color:var(--ok);color:#fff}
-  .etapa.atual .marca{border-color:var(--focus);border-width:3px;color:var(--focus);font-weight:600}
-  .etapa.futura{opacity:.55}
-  .etapa .txt{flex:1;min-width:0}
-  .etapa .tit{font-size:13.5px;font-weight:500}
-  .etapa.feita .tit{color:var(--ink-soft)}
-  .etapa .obj{font-size:12.5px;color:var(--ink-soft);margin-top:1px}
-  .etapa .quando{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-soft);flex:none;padding-top:3px}
-  textarea{width:100%;font:13.5px 'IBM Plex Sans',sans-serif;border:1px solid var(--rule);border-radius:3px;
-    padding:9px 10px;resize:vertical;min-height:74px;color:var(--ink);background:var(--card)}
+  .email{color:var(--ink-soft);font-size:12.5px}
+  .flag{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;
+    color:var(--fora);border:1px solid #E8D5B0;background:#FBF4E7;
+    padding:2px 5px;border-radius:3px;margin-left:6px;white-space:nowrap;
+  }
+  .foot{margin-top:14px;font-size:12.5px;color:var(--ink-soft);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .link-btn{background:none;border:0;color:var(--focus);font:inherit;cursor:pointer;text-decoration:underline;padding:0}
   .hidden{display:none!important}
-  .foot{margin-top:16px;font-size:12.5px;color:var(--ink-soft);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
   @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -144,176 +219,254 @@
 
   <header class="top">
     <div>
-      <h1>Carteira de Customer Success</h1>
-      <div class="sub" id="subtitle">Carregue a planilha da carteira para começar.</div>
+      <h1>Assinantes e churn</h1>
+      <div class="sub" id="subtitle">Carregue o CSV ou a planilha exportada do Sigma para começar.</div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn ghost" id="exportProg">Salvar progresso</button>
-      <button class="btn ghost" id="importProg">Restaurar</button>
-      <button class="btn" id="pickBtn">Carregar planilha</button>
-      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
-      <input type="file" id="progInput" accept=".json" style="display:none">
+    <div>
+      <button class="file-btn" id="pickBtn">Carregar arquivo</button>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
     </div>
   </header>
 
+  <!-- estado vazio -->
   <section class="drop" id="dropZone">
-    <h2>Solte a planilha aqui</h2>
-    <p>Saída da query da carteira de CS. Aceita CSV e Excel. Lida no seu navegador, não sai daqui.</p>
-    <button class="btn" id="pickBtn2">Escolher arquivo</button>
-    <div class="cols">colunas esperadas: customer_id · cliente · email · plano · dia_do_ciclo · ciclo_inicio · ciclo_fim · dias_ate_renovacao · meses_pagos · ultimo_pagamento · metodo_pagamento · faturas_abertas · valor_em_aberto · dias_de_atraso · cancelamento_agendado · alerta</div>
+    <h2>Solte o arquivo aqui</h2>
+    <p>Ou use o botão acima. Aceita CSV e Excel (.xlsx). O arquivo é lido no seu navegador e não sai daqui.</p>
+    <button class="file-btn" id="pickBtn2">Escolher arquivo</button>
+    <div class="cols">colunas esperadas: mes · tipo · categoria · cliente · email · data_referencia · valor · currency · metodo_pagamento · bandeira · fluxo_pagamento · proxima_fatura · data_finalizacao · data_baixa · invoice_id · customer_id</div>
   </section>
 
-  <main id="painel" class="hidden">
-    <div class="kpis" id="kpis"></div>
+  <!-- painel -->
+  <main id="dash" class="hidden">
 
-    <div class="eyebrow" style="margin-bottom:10px">Agenda de toques</div>
-    <div class="agenda">
-      <div class="fila atrasado"><h3>Atrasados <span class="cnt" id="cAtras">0</span></h3><div class="fila-corpo" id="fAtras"></div></div>
-      <div class="fila hoje"><h3>Hoje <span class="cnt" id="cHoje">0</span></h3><div class="fila-corpo" id="fHoje"></div></div>
-      <div class="fila proximo"><h3>Próximos 3 dias <span class="cnt" id="cProx">0</span></h3><div class="fila-corpo" id="fProx"></div></div>
+    <div class="strip-head">
+      <span class="eyebrow">Período</span>
+      <span class="eyebrow" id="stripLegend">barra: verde pago · vermelho churn</span>
+    </div>
+    <div class="strip" id="strip" role="group" aria-label="Selecionar mês"></div>
+
+    <div class="kpis kpis-main" id="kpisMain"></div>
+    <div class="kpis kpis-sub" id="kpisSub"></div>
+
+    <div class="panel wide" id="mesAtualPanel">
+      <div class="panel-head">
+        <div>
+          <h3 id="mesAtualTitulo">Situação do mês</h3>
+          <p class="hint" id="mesAtualHint"></p>
+        </div>
+        <div class="legend" id="mesAtualResumo"></div>
+      </div>
+      <div id="mesAtualCorpo"></div>
     </div>
 
-    <div class="barra">
-      <span class="eyebrow" id="contagem">—</span>
-      <div class="controles">
-        <select id="fGrupo">
-          <option value="ativos">Carteira ativa</option>
-          <option value="nunca">Nunca pagaram</option>
-          <option value="">Todos</option>
-        </select>
-        <select id="fAlerta"><option value="">Todos os alertas</option></select>
-        <select id="fMetodo"><option value="">Todos os métodos</option></select>
-        <input type="search" id="fBusca" placeholder="Buscar cliente ou email">
+    <div class="panel wide">
+      <div class="panel-head">
+        <div>
+          <h3>Evolução da base</h3>
+          <p class="hint">Ganhos acima da linha, churn abaixo. Clique numa coluna para filtrar o mês.</p>
+        </div>
+        <div class="legend" id="evoLegend"></div>
+      </div>
+      <div class="canvas-box tall"><canvas id="evoChart"></canvas></div>
+    </div>
+
+    <div class="charts">
+      <div class="panel">
+        <h3>Composição da base</h3>
+        <p class="hint" id="pieHint">Proporção entre clientes que pagaram e clientes perdidos.</p>
+        <div class="canvas-box"><canvas id="pieTipo"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h3 id="pie2Title">Origem do pagamento</h3>
+            <p class="hint" id="pie2Hint">Faturas quitadas dentro do Stripe e fora dele.</p>
+          </div>
+          <div class="seg" role="group" aria-label="Trocar gráfico">
+            <button type="button" data-mode="metodo" aria-pressed="true">Método</button>
+            <button type="button" data-mode="ticket" aria-pressed="false">Ticket</button>
+            <button type="button" data-mode="origem" aria-pressed="false">Origem</button>
+          </div>
+        </div>
+        <div class="canvas-box"><canvas id="pieFluxo"></canvas></div>
       </div>
     </div>
 
-    <div class="tabela-scroll">
-      <table><thead><tr id="thead"></tr></thead><tbody id="tbody"></tbody></table>
+    <div class="panel wide">
+      <div class="panel-head">
+        <div>
+          <h3>Retenção por método</h3>
+          <p class="hint" id="matrizHint">Como cada forma de pagamento se comporta. O churn herda o método do último pagamento.</p>
+        </div>
+      </div>
+      <div class="matriz-scroll">
+        <table class="matriz" id="matriz"></table>
+      </div>
+    </div>
+
+    <div class="tbl-head">
+      <span class="eyebrow" id="tblCount">—</span>
+      <div class="controls">
+        <select id="fTipo" aria-label="Filtrar por categoria">
+          <option value="">Todas as categorias</option>
+          <option value="NOVO">Novos</option>
+          <option value="RETIDO">Retidos</option>
+          <option value="RECUPERADO">Recuperados</option>
+          <option value="CHURN">Churn</option>
+          <option value="AGUARDANDO">Aguardando</option>
+          <option value="VENCIDO">Vencidos</option>
+        </select>
+        <select id="fMetodo" aria-label="Filtrar por método de pagamento">
+          <option value="">Todos os métodos</option>
+        </select>
+        <input type="search" id="fBusca" placeholder="Buscar cliente, email ou fatura" aria-label="Buscar">
+        <label class="check"><input type="checkbox" id="fTeste" checked> Ocultar contas de teste</label>
+        <button class="file-btn" id="exportBtn" style="background:#3A4C64">Baixar filtrado</button>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr id="thead"></tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
     </div>
 
     <div class="foot">
-      <span>O progresso das etapas fica salvo neste navegador. Use "Salvar progresso" antes de trocar de máquina.</span>
-      <button class="btn ghost" id="resetBtn" style="padding:4px 10px">Carregar outra planilha</button>
+      <span id="footNote"></span>
+      <button class="link-btn" id="resetBtn">Carregar outro arquivo</button>
     </div>
   </main>
-</div>
-
-<div class="overlay" id="overlay" hidden>
-  <div class="ficha" role="dialog" aria-modal="true" aria-labelledby="fichaNome">
-    <div class="ficha-topo">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-        <div><h2 id="fichaNome">—</h2><div class="email" id="fichaEmail"></div></div>
-        <button class="btn ghost" id="fecharFicha" style="padding:6px 12px">Fechar</button>
-      </div>
-      <div id="fichaPills" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap"></div>
-    </div>
-    <div class="ficha-corpo" id="fichaCorpo"></div>
-  </div>
 </div>
 
 <script>
 (function(){
   'use strict';
 
-  // ---------- playbook ----------
-  // Espelha o fluxo desenhado. Ajuste aqui que a agenda inteira acompanha.
-  var PLAYBOOK = {
-    A: [
-      {d:0,  t:'Boas-vindas e onboarding', o:'Confirmar pagamento e ativação, checklist de configuração, validar integrações e agendar reunião se necessário'},
-      {d:3,  t:'Primeiro avanço',          o:'Apresentar funcionalidade relevante baseada no uso do cliente'},
-      {d:5,  t:'Verificar frequência',     o:'Checar acesso e incentivar retorno caso esteja inativo'},
-      {d:7,  t:'Fechar onboarding',        o:'Coletar feedback inicial e confirmar percepção de valor'},
-      {d:10, t:'Aumentar adoção',          o:'Ensinar uma nova funcionalidade'},
-      {d:14, t:'Health check',             o:'Login, integrações, uso e funcionalidades'},
-      {d:18, t:'Aprofundar uso',           o:'Mostrar resultados alcançados: pedidos conciliados, economia de tempo'},
-      {d:23, t:'Mostrar resultado',        o:'Apresentar recurso avançado'},
-      {d:27, t:'Preparar renovação',       o:'Preparar renovação e pedir sugestões'},
-      {d:30, t:'Encerrar ciclo',           o:'Coletar feedback e reforçar benefícios'}
-    ],
-    B: [
-      {d:0,  t:'Abrir novo ciclo',         o:'Confirmar pagamento, atualizar próxima renovação, validar plano e chamados abertos'},
-      {d:3,  t:'Verificar continuidade',   o:'Checar se houve login e uso recente; se caiu, mensagem objetiva e oferta de ajuda'},
-      {d:7,  t:'Validar adoção contínua',  o:'Verificar funcionalidade principal, marketplaces conectados, chamados e integrações'},
-      {d:10, t:'Fechar feedback',          o:'Coletar feedback e confirmar percepção de valor'},
-      {d:14, t:'Health check',             o:'Revisar login, integrações, funcionalidades, chamados, erros e plano atual'},
-      {d:18, t:'Mostrar resultado',        o:'Enviar resumo de uso: pedidos conciliados, volume processado, divergências, ganhos operacionais'},
-      {d:21, t:'Decidir caminho',          o:'Verde: expansão. Amarelo: adoção guiada. Vermelho: recuperação'},
-      {d:25, t:'Pré-renovação',            o:'Validar pendências, riscos e percepção de valor antes da cobrança'},
-      {d:27, t:'Fechar ciclo',             o:'Atualizar health score, registrar resultado, risco, ações e próxima ação'}
-    ]
-  };
-
   var COLS = [
-    {k:'cliente',            t:'Cliente'},
-    {k:'plano',              t:'Trilha'},
-    {k:'dia_do_ciclo',       t:'Dia',      cls:'num', num:true},
-    {k:'proximo_toque',      t:'Próximo toque'},
-    {k:'alerta',             t:'Alerta'},
-    {k:'metodo_pagamento',   t:'Método'},
-    {k:'meses_pagos',        t:'Meses',    cls:'num', num:true},
-    {k:'dias_ate_renovacao', t:'Renova em',cls:'num', num:true}
+    {k:'mes',            t:'Mês',        cls:'mono'},
+    {k:'categoria',      t:'Categoria'},
+    {k:'cliente',        t:'Cliente'},
+    {k:'metodo_pagamento',t:'Método'},
+    {k:'data_referencia',t:'Data',       cls:'mono', data:true},
+    {k:'valor',          t:'Valor',      cls:'num', num:true},
+    {k:'proxima_fatura', t:'Próx. fatura', cls:'mono', data:true},
+    {k:'data_finalizacao',t:'Finalizada',cls:'mono', data:true},
+    {k:'invoice_id',     t:'Fatura',     cls:'mono'}
   ];
 
-  var MET = {cartao:'Cartão', boleto:'Boleto', pix:'Pix', nao_informado:'Não informado'};
-  var CHAVE_STORE = 'cs_progresso_v1';
+  var MET = {
+    cartao:        {cor:'#1B4D8F', rot:'Cartão'},
+    pix:           {cor:'#0E7C66', rot:'Pix'},
+    boleto:        {cor:'#C0872E', rot:'Boleto'},
+    baixa_manual:  {cor:'#8A99AC', rot:'Baixa manual'},
+    nao_informado: {cor:'#8A99AC', rot:'Não informado'}
+  };
 
-  var clientes = [], progresso = {}, sortKey = 'cliente', sortDir = 1, atual = null;
+  var CAT = {
+    NOVO:       {cor:'#1B4D8F', rot:'Novos'},
+    RETIDO:     {cor:'#0E7C66', rot:'Retidos'},
+    RECUPERADO: {cor:'#C0872E', rot:'Recuperados'},
+    CHURN:      {cor:'#B4462F', rot:'Churn'},
+    AGUARDANDO: {cor:'#C0872E', rot:'Aguardando'},
+    VENCIDO:    {cor:'#B4462F', rot:'Vencido'}
+  };
+  // A composição e o gráfico de evolução usam só as quatro definitivas.
+  // AGUARDANDO é estado transitório do mês corrente e aparece à parte.
+  var CAT_ORDEM = ['NOVO','RETIDO','RECUPERADO','CHURN'];
 
-  // ---------- storage ----------
-  function carregarProgresso(){
-    try{ progresso = JSON.parse(localStorage.getItem(CHAVE_STORE) || '{}'); }
-    catch(e){ progresso = {}; }
-  }
-  function salvarProgresso(){
-    try{ localStorage.setItem(CHAVE_STORE, JSON.stringify(progresso)); }
-    catch(e){ /* modo privado ou storage cheio: segue em memória */ }
-  }
-  function progDe(id){
-    if(!progresso[id]) progresso[id] = {feitas:{}, nota:''};
-    if(!progresso[id].feitas) progresso[id].feitas = {};
-    return progresso[id];
-  }
-  // chave da etapa inclui o ciclo, para o Plano B reiniciar a cada renovação
-  function chaveEtapa(c, d){ return (c.ciclo_inicio || 'x') + ':D' + d; }
+  // Só entram meses a partir daqui. Ajuste se mudar o recorte histórico.
+  var CORTE = '2024-09';
 
-  // ---------- leitura ----------
+  var C = {
+    pago:  cssVar('--pago'),
+    churn: cssVar('--churn'),
+    fora:  cssVar('--fora'),
+    ink:   cssVar('--ink'),
+    rule:  cssVar('--rule')
+  };
+  function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  var rows = [];        // todas as linhas
+  var meses = [];       // meses ordenados
+  var mesSel = '';      // '' = todos
+  var sortKey = 'cliente', sortDir = 1;
+  var chartTipo = null, chartFluxo = null, chartEvo = null;
+  var pie2Mode = 'metodo';
+  var TICKET_COLORS = ['#0F1E33','#1B4D8F','#0E7C66','#C0872E','#7A5C9E','#4C6478','#B4462F'];
+
+  // ---------- carga ----------
   var fileInput = document.getElementById('fileInput');
-  var dropZone = document.getElementById('dropZone');
+  var dropZone  = document.getElementById('dropZone');
+
   document.getElementById('pickBtn').onclick  = function(){ fileInput.click(); };
   document.getElementById('pickBtn2').onclick = function(){ fileInput.click(); };
   document.getElementById('resetBtn').onclick = function(){
-    document.getElementById('painel').classList.add('hidden');
+    document.getElementById('dash').classList.add('hidden');
     dropZone.classList.remove('hidden');
+    document.getElementById('subtitle').textContent = 'Carregue o CSV ou a planilha exportada do Sigma para começar.';
     fileInput.value = '';
   };
-  fileInput.onchange = function(e){ if(e.target.files[0]) ler(e.target.files[0]); };
+
+  fileInput.onchange = function(e){ if(e.target.files[0]) read(e.target.files[0]); };
+
   ['dragenter','dragover'].forEach(function(ev){
     dropZone.addEventListener(ev, function(e){ e.preventDefault(); dropZone.classList.add('over'); });
   });
   ['dragleave','drop'].forEach(function(ev){
     dropZone.addEventListener(ev, function(e){ e.preventDefault(); dropZone.classList.remove('over'); });
   });
-  dropZone.addEventListener('drop', function(e){ if(e.dataTransfer.files[0]) ler(e.dataTransfer.files[0]); });
+  dropZone.addEventListener('drop', function(e){
+    var f = e.dataTransfer.files[0];
+    if(f) read(f);
+  });
 
-  function ler(file){
+  function read(file){
     var nome = (file.name||'').toLowerCase();
-    if(/\.(xlsx|xlsm|xls)$/.test(nome)){
-      var fr = new FileReader();
-      fr.onload = function(e){
-        try{
-          var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
-          ingest(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:'', raw:true}), file.name);
-        }catch(err){ alert('Não consegui abrir a planilha.'); }
-      };
-      fr.readAsArrayBuffer(file);
-    } else {
-      Papa.parse(file, {header:true, skipEmptyLines:true, encoding:'UTF-8',
-        complete:function(res){ ingest(res.data||[], file.name); },
-        error:function(){ alert('Não consegui ler o arquivo.'); }});
-    }
+    if(/\.(xlsx|xlsm|xls)$/.test(nome)) readExcel(file);
+    else readCsv(file);
   }
 
-  function pad(n){ return (n<10?'0':'')+n; }
+  function readCsv(file){
+    Papa.parse(file, {
+      header:true, skipEmptyLines:true, encoding:'UTF-8',
+      complete: function(res){ ingest(res.data||[], file.name); },
+      error: function(){ alert('Não consegui ler o arquivo. Salve como CSV ou .xlsx e tente de novo.'); }
+    });
+  }
+
+  function readExcel(file){
+    var fr = new FileReader();
+    fr.onload = function(e){
+      try{
+        var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        ingest(XLSX.utils.sheet_to_json(ws, {defval:'', raw:true}), file.name);
+      }catch(err){
+        alert('Não consegui abrir a planilha. Verifique se o arquivo não está corrompido.');
+      }
+    };
+    fr.onerror = function(){ alert('Falha ao ler o arquivo.'); };
+    fr.readAsArrayBuffer(file);
+  }
+
+  // ---------- normalização ----------
+  function pad(n){ return (n<10?'0':'') + n; }
+
+  // aceita Date (Excel), "2025-10", "2025-10-01" e "01/10/2025"
+  function toMonth(v){
+    if(v instanceof Date && !isNaN(v)) return v.getFullYear() + '-' + pad(v.getMonth()+1);
+    var s = String(v||'').trim();
+    var m = s.match(/^(\d{4})-(\d{2})/);
+    if(m) return m[1] + '-' + m[2];
+    m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if(m) return m[3] + '-' + m[2];
+    var d = new Date(s);
+    return isNaN(d) ? '' : d.getFullYear() + '-' + pad(d.getMonth()+1);
+  }
+
   function toDate(v){
     if(v instanceof Date && !isNaN(v)) return v.getFullYear()+'-'+pad(v.getMonth()+1)+'-'+pad(v.getDate());
     var s = String(v||'').trim();
@@ -324,358 +477,711 @@
     var d = new Date(s);
     return isNaN(d) ? s : d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
   }
-  function num(v){
+
+  // aceita 199.9, "199,90", "R$ 199,90"
+  function toNum(v){
     if(typeof v === 'number') return v;
     var s = String(v||'').replace(/[^\d,.-]/g,'');
-    if(s.indexOf(',')>-1 && s.indexOf('.')>-1) s = s.replace(/\./g,'').replace(',','.');
-    else if(s.indexOf(',')>-1) s = s.replace(',','.');
-    var n = parseFloat(s);
-    return isNaN(n) ? 0 : n;
+    if(s.indexOf(',') > -1 && s.indexOf('.') > -1) s = s.replace(/\./g,'').replace(',','.');
+    else if(s.indexOf(',') > -1) s = s.replace(',','.');
+    return parseFloat(s) || 0;
   }
-  function txt(v){ return v===null||v===undefined ? '' : String(v).trim(); }
+
+  function txt(v){ return v === null || v === undefined ? '' : String(v).trim(); }
+
+  // Exibição em dd/mm/aaaa. Internamente as datas seguem em ISO, porque é
+  // o formato que ordena corretamente como texto.
+  function brData(iso){
+    if(!iso) return '';
+    var m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? m[3]+'/'+m[2]+'/'+m[1] : String(iso);
+  }
 
   function ingest(data, nomeArquivo){
-    var bruto = (data||[]).filter(function(r){ return r && r.customer_id && r.cliente; });
-    if(!bruto.length){
+    var limpo = (data||[]).filter(function(r){ return r && r.tipo && r.mes; });
+    if(!limpo.length){
       var cols = data && data[0] ? Object.keys(data[0]) : [];
-      alert(cols.indexOf('tipo') > -1
-        ? 'Esta é a planilha de assinantes e churn. Aqui vai a planilha da carteira de CS, com uma linha por cliente.'
-        : 'Não encontrei as colunas "customer_id" e "cliente".' + (cols.length ? '\n\nO arquivo tem: ' + cols.join(', ') : ''));
+      var msg;
+      if(cols.indexOf('churn_rate_pct') > -1 || (cols.indexOf('pagantes') > -1 && cols.indexOf('churn') > -1)){
+        msg = 'Este arquivo é o resumo agregado (uma linha por mês e método).\n\n' +
+              'O painel precisa da listagem linha a linha, com uma linha por fatura ' +
+              'e por churn. Exporte pela query da listagem, que traz as colunas ' +
+              '"tipo" e "categoria".';
+      } else if(cols.length){
+        msg = 'Não encontrei as colunas "mes" e "tipo".\n\nO arquivo tem: ' + cols.join(', ');
+      } else {
+        msg = 'Não encontrei linhas válidas no arquivo.';
+      }
+      alert(msg);
+      return;
+    }
+    rows = limpo.map(function(r){
+      return {
+        mes: toMonth(r.mes),
+        tipo: txt(r.tipo).toUpperCase(),
+        categoria: txt(r.categoria).toUpperCase(),
+        cliente: txt(r.cliente),
+        email: txt(r.email),
+        data_referencia: toDate(r.data_referencia),
+        valor: toNum(r.valor),
+        currency: txt(r.currency),
+        metodo_pagamento: txt(r.metodo_pagamento).toLowerCase(),
+        bandeira: txt(r.bandeira),
+        fluxo_pagamento: txt(r.fluxo_pagamento),
+        proxima_fatura: toDate(r.proxima_fatura),
+        status_assinatura: txt(r.status_assinatura),
+        vencimento_aberto: toDate(r.vencimento_aberto),
+        data_finalizacao: toDate(r.data_finalizacao),
+        data_baixa: toDate(r.data_baixa),
+        invoice_id: txt(r.invoice_id),
+        customer_id: txt(r.customer_id)
+      };
+    }).filter(function(r){ return r.mes && r.mes >= CORTE; });
+
+    if(!rows.length){
+      alert('Nenhum registro a partir de ' + CORTE + '. Ajuste a constante CORTE no arquivo ou o intervalo da consulta.');
       return;
     }
 
-    clientes = bruto.map(function(r){
-      var c = {
-        customer_id: txt(r.customer_id),
-        cliente: txt(r.cliente),
-        email: txt(r.email),
-        telefone: txt(r.telefone),
-        plano: (txt(r.plano).toUpperCase() === 'A') ? 'A' : 'B',
-        dia_do_ciclo: num(r.dia_do_ciclo),
-        ciclo_inicio: toDate(r.ciclo_inicio),
-        ciclo_fim: toDate(r.ciclo_fim),
-        dias_ate_renovacao: num(r.dias_ate_renovacao),
-        meses_pagos: num(r.meses_pagos),
-        primeiro_pagamento: toDate(r.primeiro_pagamento),
-        ultimo_pagamento: toDate(r.ultimo_pagamento),
-        dias_sem_pagar: num(r.dias_sem_pagar),
-        total_pago: num(r.total_pago),
-        metodo_pagamento: txt(r.metodo_pagamento).toLowerCase() || 'nao_informado',
-        faturas_abertas: num(r.faturas_abertas),
-        valor_em_aberto: num(r.valor_em_aberto),
-        dias_de_atraso: r.dias_de_atraso === '' ? null : num(r.dias_de_atraso),
-        cancelamento_agendado: num(r.cancelamento_agendado) === 1,
-        cobranca_pausada: num(r.cobranca_pausada) === 1,
-        alerta: txt(r.alerta),
-        subscription_id: txt(r.subscription_id),
-        assinou_em: toDate(r.assinou_em)
-      };
-      c.nunca_pagou = c.meses_pagos === 0;
-      return c;
+    rows.forEach(function(r){ r.teste = ehTeste(r); });
+
+    derivarCategorias();
+
+    meses = uniq(rows.map(function(r){return r.mes;})).sort();
+    mesSel = '';
+
+    // o seletor só mostra os métodos que existem no arquivo
+    var sel = document.getElementById('fMetodo');
+    var mets = uniq(rows.map(function(r){return r.metodo_pagamento;})).sort();
+    sel.innerHTML = '<option value="">Todos os métodos</option>' +
+      mets.map(function(m){
+        return '<option value="'+m+'">' + ((MET[m]||{}).rot || m) + '</option>';
+      }).join('');
+    sel.parentNode.style.display = mets.length ? '' : 'none';
+    dropZone.classList.add('hidden');
+    document.getElementById('dash').classList.remove('hidden');
+    document.getElementById('subtitle').textContent =
+      rows.length + ' registros · ' + meses[0] + ' a ' + meses[meses.length-1] + ' · ' + nomeArquivo;
+    buildStrip(); buildHead(); render();
+  }
+
+  function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
+
+  // Heurística para conta de teste. Não apaga nada — só permite ocultar.
+  var RE_TESTE = /(teste|test[_\-. ]|@teste\.|dopix|pix@|forum\.com|extendido\.com|heavty|dyleris|manupay|fivejm)/i;
+  function ehTeste(r){
+    return RE_TESTE.test((r.cliente || '') + ' ' + (r.email || ''));
+  }
+
+  // rows visíveis conforme o interruptor de contas de teste
+  function base(){
+    var el = document.getElementById('fTeste');
+    return (el && el.checked) ? rows.filter(function(r){ return !r.teste; }) : rows;
+  }
+
+  // Se o arquivo já traz "categoria", respeita. Se não, deriva a partir
+  // dos meses presentes — nesse caso o primeiro mês do arquivo não tem
+  // histórico anterior, então quem aparece nele é marcado como RETIDO
+  // em vez de NOVO, para não inventar cliente novo que não é.
+  function derivarCategorias(){
+    var temColuna = rows.some(function(r){ return r.categoria; });
+    if(temColuna){
+      rows.forEach(function(r){
+        if(!r.categoria) r.categoria = (r.tipo === 'CHURN' ? 'CHURN' : 'RETIDO');
+      });
+      return;
+    }
+    var primeiroMes = rows.map(function(r){return r.mes;}).sort()[0];
+    var pagos = {};   // chave -> lista de meses
+    rows.filter(function(r){return r.tipo === 'PAGO';}).forEach(function(r){
+      var k = keyOf(r);
+      (pagos[k] = pagos[k] || []).push(r.mes);
+    });
+    Object.keys(pagos).forEach(function(k){ pagos[k] = uniq(pagos[k]).sort(); });
+
+    rows.forEach(function(r){
+      if(r.tipo === 'CHURN'){ r.categoria = 'CHURN'; return; }
+      var lista = pagos[keyOf(r)] || [];
+      var i = lista.indexOf(r.mes);
+      if(i === 0) r.categoria = (r.mes === primeiroMes ? 'RETIDO' : 'NOVO');
+      else if(lista[i-1] === mesAnterior(r.mes)) r.categoria = 'RETIDO';
+      else r.categoria = 'RECUPERADO';
+    });
+  }
+
+  function mesAnterior(m){
+    var p = m.split('-'), a = +p[0], b = +p[1] - 1;
+    if(b === 0){ b = 12; a -= 1; }
+    return a + '-' + pad(b);
+  }
+
+  // ---------- régua de meses ----------
+  function buildStrip(){
+    var strip = document.getElementById('strip');
+    strip.innerHTML = '';
+    var maxTot = 0;
+    var stats = meses.map(function(m){
+      var s = statsFor(m);
+      if(s.pagantes + s.churn > maxTot) maxTot = s.pagantes + s.churn;
+      return s;
     });
 
-    clientes.forEach(calcularToque);
-
-    // seletores dinâmicos
-    preencher('fAlerta', uniq(clientes.map(function(c){return c.alerta;})).sort(), 'Todos os alertas');
-    preencher('fMetodo', uniq(clientes.map(function(c){return c.metodo_pagamento;})).sort(), 'Todos os métodos',
-      function(v){ return MET[v] || v; });
-
-    dropZone.classList.add('hidden');
-    document.getElementById('painel').classList.remove('hidden');
-    document.getElementById('subtitle').textContent =
-      clientes.length + ' clientes · ' + clientes.filter(function(c){return !c.nunca_pagou;}).length +
-      ' na carteira ativa · ' + nomeArquivo;
-    montarCabecalho();
-    render();
+    strip.appendChild(chip('Todos', '', totalPagantes(), 0, 0));
+    stats.forEach(function(s, i){
+      strip.appendChild(chip(label(meses[i]), meses[i], s.pagantes, s.pagantes, s.churn + s.aguardando));
+    });
+    syncChips();
   }
 
-  function uniq(a){ return Array.from(new Set(a.filter(function(x){return x !== '' && x != null;}))); }
-  function preencher(id, vals, rotulo, fmt){
-    var el = document.getElementById(id);
-    el.innerHTML = '<option value="">' + rotulo + '</option>' +
-      vals.map(function(v){ return '<option value="'+v+'">' + (fmt ? fmt(v) : v) + '</option>'; }).join('');
+  function chip(text, mes, big, p, c){
+    var b = document.createElement('button');
+    b.className = 'mchip';
+    b.type = 'button';
+    b.dataset.mes = mes;
+    b.setAttribute('aria-pressed', String(mes === mesSel));
+    var tot = p + c;
+    var pw = tot ? (p/tot*100) : 0;
+    b.innerHTML =
+      '<div class="lbl">' + text + '</div>' +
+      '<div class="num">' + big + '</div>' +
+      (mes ? '<div class="bar"><i class="p" style="width:'+pw+'%"></i><i class="c" style="width:'+(100-pw)+'%"></i></div>'
+           : '<div class="bar"><i class="p" style="width:100%"></i></div>');
+    b.onclick = function(){
+      mesSel = mes;
+      syncChips(); render();
+    };
+    return b;
   }
 
-  // ---------- lógica do playbook ----------
-  // Descobre qual etapa está pendente: a primeira não marcada cujo dia já
-  // chegou. Se todas as vencidas foram feitas, aponta a próxima futura.
-  function calcularToque(c){
-    var etapas = PLAYBOOK[c.plano];
-    var p = progDe(c.customer_id);
-    var pendente = null, proxima = null;
-    for(var i=0;i<etapas.length;i++){
-      var e = etapas[i];
-      var feita = !!p.feitas[chaveEtapa(c, e.d)];
-      if(feita) continue;
-      if(e.d <= c.dia_do_ciclo){ pendente = e; break; }
-      if(!proxima) proxima = e;
+  function syncChips(){
+    Array.prototype.forEach.call(document.querySelectorAll('.mchip'), function(el){
+      el.setAttribute('aria-pressed', String(el.dataset.mes === mesSel));
+    });
+  }
+
+  function label(m){
+    var nomes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    var p = m.split('-');
+    return nomes[parseInt(p[1],10)-1] + '/' + p[0].slice(2);
+  }
+
+  // ---------- números ----------
+  function statsFor(mes){
+    var b = base();
+    var sub = mes ? b.filter(function(r){return r.mes===mes;}) : b;
+    var pagos = sub.filter(function(r){return r.tipo==='PAGO';});
+    var churns = sub.filter(function(r){return r.tipo==='CHURN';});
+    function clientes(cat){
+      return uniq(pagos.filter(function(r){return r.categoria===cat;}).map(keyOf)).length;
     }
-    var alvo = pendente || proxima;
-    c.etapa = alvo;
-    c.proximo_toque = alvo ? ('D' + alvo.d + ' · ' + alvo.t) : 'Ciclo concluído';
-    c.atraso_toque = alvo ? (c.dia_do_ciclo - alvo.d) : null;   // >0 atrasado, 0 hoje, <0 futuro
-    c.fila = !alvo ? 'feito'
-           : c.atraso_toque > 0 ? 'atrasado'
-           : c.atraso_toque === 0 ? 'hoje'
-           : c.atraso_toque >= -3 ? 'proximo' : 'depois';
+    return {
+      pagantes: uniq(pagos.map(keyOf)).length,
+      faturas: pagos.length,
+      churn: uniq(churns.map(keyOf)).length,
+      aguardando: uniq(sub.filter(function(r){return r.categoria==='AGUARDANDO';}).map(keyOf)).length,
+      vencidos: uniq(sub.filter(function(r){return r.categoria==='VENCIDO';}).map(keyOf)).length,
+      novos: clientes('NOVO'),
+      retidos: clientes('RETIDO'),
+      recuperados: clientes('RECUPERADO'),
+      receita: pagos.reduce(function(a,r){return a+r.valor;},0),
+      fora: pagos.filter(function(r){return r.fluxo_pagamento==='fora_do_stripe';}).length,
+      dentro: pagos.filter(function(r){return r.fluxo_pagamento!=='fora_do_stripe';}).length
+    };
+  }
+  function keyOf(r){ return (r.email || r.customer_id || r.cliente).toLowerCase(); }
+  function totalPagantes(){ return uniq(base().filter(function(r){return r.tipo==='PAGO';}).map(keyOf)).length; }
+
+  function brl(v){
+    return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2});
   }
 
-  function severidade(c){
-    if(c.cancelamento_agendado) return 'risco';
-    if(c.alerta === 'FATURA VENCIDA' || c.alerta === 'NUNCA PAGOU') return 'risco';
-    if(c.alerta) return 'atencao';
-    return 'neutro';
+  // Base do mês anterior = quem pagou no mês anterior. Todo mundo que pagou
+  // no mês anterior ou continuou pagando (retido) ou parou (churn), então
+  // retidos + churn é exatamente essa base. Novos e recuperados ficam de
+  // fora porque não estavam na base para poderem sair dela.
+  function churnRate(s){
+    var base = s.retidos + s.churn;
+    return base ? (s.churn / base * 100) : 0;
   }
 
   // ---------- render ----------
-  function ativos(){ return clientes.filter(function(c){ return !c.nunca_pagou; }); }
-
   function render(){
-    var base = ativos();
-    var vencidas = base.filter(function(c){ return c.alerta === 'FATURA VENCIDA'; });
-    var cancel = base.filter(function(c){ return c.cancelamento_agendado; });
-    var atrasadas = base.filter(function(c){ return c.fila === 'atrasado'; });
-    var naoPagos = clientes.filter(function(c){ return c.nunca_pagou; });
-    var emAberto = naoPagos.reduce(function(a,c){ return a + c.valor_em_aberto; }, 0);
+    var s = statsFor(mesSel);
+    var escopo = mesSel ? label(mesSel) : 'período inteiro';
 
-    document.getElementById('kpis').innerHTML =
-      kpi('Carteira ativa', base.length, 'ok', 'clientes com pagamento') +
-      kpi('Toques atrasados', atrasadas.length, atrasadas.length ? 'risco' : '', 'etapas vencidas não feitas') +
-      kpi('Cancelamento agendado', cancel.length, cancel.length ? 'risco' : '', 'ainda dá para reverter') +
-      kpi('Fatura vencida', vencidas.length, vencidas.length ? 'atencao' : '', 'churn involuntário') +
-      kpi('Nunca pagaram', naoPagos.length, 'atencao', brl(emAberto) + ' em aberto');
+    var saldo = s.novos + s.recuperados - s.churn;
+    var sinal = saldo > 0 ? '+' : '';
 
-    fila('fAtras','cAtras', base.filter(function(c){return c.fila==='atrasado';}), 'Nenhum toque atrasado.');
-    fila('fHoje','cHoje',   base.filter(function(c){return c.fila==='hoje';}),     'Nada vencendo hoje.');
-    fila('fProx','cProx',   base.filter(function(c){return c.fila==='proximo';}),  'Nada nos próximos 3 dias.');
+    document.getElementById('kpisMain').innerHTML =
+      kpi('Clientes pagantes', s.pagantes, 'pago', s.faturas + ' faturas em ' + escopo) +
+      kpi('Saldo do período', sinal + saldo, saldo < 0 ? 'churn' : 'pago',
+          'entradas menos churn') +
+      kpi('Receita', brl(s.receita), '', s.pagantes ? brl(s.receita/s.pagantes) + ' por cliente' : '—');
 
-    tabela();
+    document.getElementById('kpisSub').innerHTML =
+      kpi('Novos', s.novos, 'novo', 'primeira assinatura') +
+      kpi('Retidos', s.retidos, 'pago', 'vieram do mês anterior') +
+      kpi('Recuperados', s.recuperados, 'recuperado', 'voltaram após pausa') +
+      kpi('Churn', s.churn, 'churn', churnRate(s).toFixed(1).replace('.',',') + '% da base anterior');
+
+    document.getElementById('pieHint').textContent =
+      'Clientes distintos em ' + escopo + '.';
+
+    drawMesAtual();
+    drawEvo();
+    drawPies(s);
+    drawMatriz();
+    drawTable();
   }
 
-  function kpi(k,v,cls,nota){
-    return '<div class="kpi"><div class="k">'+k+'</div><div class="v '+cls+'">'+v+'</div><div class="note">'+nota+'</div></div>';
+  function kpi(k, v, cls, note){
+    return '<div class="kpi"><div class="k">'+k+'</div>' +
+           '<div class="v '+cls+'">'+v+'</div>' +
+           '<div class="note">'+note+'</div></div>';
   }
-  function brl(v){ return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
 
-  function fila(idCorpo, idCnt, lista, vazio){
-    lista.sort(function(a,b){ return (b.atraso_toque||0) - (a.atraso_toque||0); });
-    document.getElementById(idCnt).textContent = lista.length;
-    var el = document.getElementById(idCorpo);
-    if(!lista.length){ el.innerHTML = '<div class="vazio">'+vazio+'</div>'; return; }
-    el.innerHTML = lista.map(function(c){
-      var sev = severidade(c);
-      var quando = c.atraso_toque > 0 ? ('há ' + c.atraso_toque + 'd') :
-                   c.atraso_toque === 0 ? 'hoje' : ('em ' + Math.abs(c.atraso_toque) + 'd');
-      return '<button class="item" data-id="'+esc(c.customer_id)+'">' +
-        '<div class="nome">'+esc(c.cliente)+'</div>' +
-        '<div class="meta">' +
-          '<span class="pill '+c.plano+'">Plano '+c.plano+'</span>' +
-          '<span>D'+c.etapa.d+' · '+esc(c.etapa.t)+'</span>' +
-          '<span class="mono">'+quando+'</span>' +
-          (c.alerta ? '<span class="pill '+sev+'">'+esc(c.alerta)+'</span>' : '') +
-        '</div></button>';
+  var pieOpts = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{
+      legend:{position:'bottom', labels:{font:{family:"'IBM Plex Sans'",size:12}, boxWidth:11, padding:14, color:C.ink}},
+      tooltip:{
+        backgroundColor:'#0F1E33', padding:10, cornerRadius:3,
+        titleFont:{family:"'IBM Plex Sans'"}, bodyFont:{family:"'IBM Plex Mono'"},
+        callbacks:{
+          label:function(ctx){
+            var tot = ctx.dataset.data.reduce(function(a,b){return a+b;},0);
+            var pct = tot ? (ctx.parsed/tot*100).toFixed(1).replace('.',',') : '0';
+            return ' ' + ctx.parsed + '  (' + pct + '%)';
+          }
+        }
+      }
+    },
+    animation:{duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 420}
+  };
+
+  // matriz método × categoria, com a taxa de churn de cada método
+  function drawMatriz(){
+    var b = base();
+    var sub = mesSel ? b.filter(function(r){return r.mes===mesSel;}) : b;
+    var mets = uniq(sub.map(function(r){return r.metodo_pagamento;})).sort();
+    var el = document.getElementById('matriz');
+
+    if(!mets.length){
+      el.innerHTML = '<tbody><tr><td style="padding:26px;color:#5B6B82;font-family:inherit;text-align:left">' +
+        'O arquivo carregado não traz a coluna de método de pagamento. Exporte pela v11 para ver esta análise.' +
+        '</td></tr></tbody>';
+      document.getElementById('matrizHint').textContent = 'Requer a coluna metodo_pagamento.';
+      return;
+    }
+
+    function conta(m, cat){
+      return uniq(sub.filter(function(r){
+        return r.metodo_pagamento === m && r.categoria === cat;
+      }).map(keyOf)).length;
+    }
+
+    var linhas = mets.map(function(m){
+      var nov = conta(m,'NOVO'), ret = conta(m,'RETIDO'),
+          rec = conta(m,'RECUPERADO'), ch = conta(m,'CHURN');
+      var base = ret + ch;
+      var receita = sub.filter(function(r){
+        return r.metodo_pagamento === m && r.tipo === 'PAGO';
+      }).reduce(function(a,r){return a+r.valor;},0);
+      return {m:m, nov:nov, ret:ret, rec:rec, ch:ch, pag:nov+ret+rec,
+              taxa: base ? ch/base*100 : null, receita:receita};
+    }).sort(function(a,b){ return b.pag - a.pag; });
+
+    var tot = linhas.reduce(function(a,l){
+      a.nov+=l.nov; a.ret+=l.ret; a.rec+=l.rec; a.ch+=l.ch; a.pag+=l.pag; a.receita+=l.receita;
+      return a;
+    }, {nov:0,ret:0,rec:0,ch:0,pag:0,receita:0});
+    tot.taxa = (tot.ret+tot.ch) ? tot.ch/(tot.ret+tot.ch)*100 : null;
+
+    var pior = Math.max.apply(null, linhas.map(function(l){ return l.taxa === null ? 0 : l.taxa; }));
+
+    function taxaCel(t, destacar){
+      if(t === null) return '<span class="muted">—</span>';
+      var forte = destacar && t === pior && linhas.length > 1 && t > 0;
+      var txt = t.toFixed(1).replace('.',',') + '%';
+      return '<span class="taxa" style="' +
+        (forte ? 'background:var(--churn-soft);color:var(--churn)' : '') + '">' + txt + '</span>' +
+        '<div class="barra"><i style="width:'+Math.min(t,100)+'%"></i></div>';
+    }
+
+    function linha(nome, l, destacar){
+      return '<tr><td>'+nome+'</td>' +
+        '<td>'+l.pag+'</td><td>'+l.nov+'</td><td>'+l.ret+'</td>' +
+        '<td>'+l.rec+'</td><td>'+l.ch+'</td>' +
+        '<td>'+taxaCel(l.taxa, destacar)+'</td>' +
+        '<td>'+brl(l.receita)+'</td></tr>';
+    }
+
+    el.innerHTML =
+      '<thead><tr><th>Método</th><th>Pagantes</th><th>Novos</th><th>Retidos</th>' +
+      '<th>Recuperados</th><th>Churn</th><th>Taxa de churn</th><th>Receita</th></tr></thead>' +
+      '<tbody>' +
+      linhas.map(function(l){
+        var meta = MET[l.m] || {cor:'#5B6B82', rot:l.m};
+        return linha('<span class="tag" style="background:'+meta.cor+'1A;color:'+meta.cor+'">'+meta.rot+'</span>', l, true);
+      }).join('') +
+      linha('Total', tot, false) +
+      '</tbody>';
+
+    document.getElementById('matrizHint').textContent =
+      'Comportamento de cada forma de pagamento em ' + (mesSel ? label(mesSel) : 'todo o período') +
+      '. O churn herda o método do último pagamento.';
+  }
+
+  // Situação do mês mais recente do arquivo.
+  // Enquanto o mês não fecha, quem está marcado como CHURN nele ainda não
+  // é churn: é quem pagou no mês passado e ainda não pagou neste.
+  function drawMesAtual(){
+    var b = base();
+    var ultimo = meses[meses.length-1];
+    var hoje = new Date();
+    var mesReal = hoje.getFullYear() + '-' + pad(hoje.getMonth()+1);
+    var emCurso = (ultimo === mesReal);
+
+    var noMes = b.filter(function(r){ return r.mes === ultimo; });
+    var pagaram = uniq(noMes.filter(function(r){ return r.tipo === 'PAGO'; }).map(keyOf));
+
+    // No mês corrente o SQL marca como AGUARDANDO ou VENCIDO; no fechado, CHURN.
+    var temAguardando = noMes.some(function(r){ return r.tipo === 'AGUARDANDO'; });
+    emCurso = emCurso || temAguardando;
+
+    // um registro por cliente pendente, o de maior valor
+    var mapa = {};
+    noMes.filter(function(r){
+      return temAguardando ? r.tipo === 'AGUARDANDO' : r.tipo === 'CHURN';
+    }).forEach(function(r){
+      var k = keyOf(r);
+      if(!mapa[k] || r.valor > mapa[k].valor) mapa[k] = r;
+    });
+    var pendentes = Object.keys(mapa).map(function(k){ return mapa[k]; });
+
+    // vencidos primeiro, e dentro de cada grupo o pagamento mais antigo antes
+    var ordem = {VENCIDO:0, AGUARDANDO:1, CHURN:2};
+    pendentes.sort(function(a,b){
+      var d = (ordem[a.categoria] || 3) - (ordem[b.categoria] || 3);
+      if(d) return d;
+      return String(a.data_referencia).localeCompare(String(b.data_referencia));
+    });
+    var vencidos = pendentes.filter(function(r){ return r.categoria === 'VENCIDO'; }).length;
+
+    var recebido = noMes.filter(function(r){ return r.tipo === 'PAGO'; })
+                        .reduce(function(a,r){ return a + r.valor; }, 0);
+    var pendente = pendentes.reduce(function(a,r){ return a + r.valor; }, 0);
+    var total = pagaram.length + pendentes.length;
+
+    document.getElementById('mesAtualTitulo').textContent =
+      emCurso ? 'Situação de ' + label(ultimo) + ' — mês em curso'
+              : 'Situação de ' + label(ultimo) + ' — mês fechado';
+
+    document.getElementById('mesAtualHint').textContent = emCurso
+      ? 'Aguardando pagamento: pagaram no mês passado e ainda não pagaram neste. Só viram churn quando o mês fechar.'
+      : 'Mês já encerrado: quem não pagou é churn confirmado.';
+
+    document.getElementById('mesAtualResumo').innerHTML =
+      '<span><i style="background:'+CAT.RETIDO.cor+'"></i>' + pagaram.length + ' de ' + total +
+        ' pagaram · ' + brl(recebido) + '</span>' +
+      (emCurso
+        ? (vencidos ? '<span><i style="background:'+CAT.VENCIDO.cor+'"></i>' + vencidos + ' vencidos</span>' : '') +
+          '<span><i style="background:'+CAT.AGUARDANDO.cor+'"></i>' +
+            (pendentes.length - vencidos) + ' no prazo · ' + brl(pendente) + '</span>'
+        : '<span><i style="background:'+CAT.CHURN.cor+'"></i>' +
+            pendentes.length + ' churn · ' + brl(pendente) + '</span>');
+
+    var corpo = document.getElementById('mesAtualCorpo');
+    if(!pendentes.length){
+      corpo.innerHTML = '<div class="tudo-pago">Todos os clientes do mês anterior já pagaram.</div>';
+      return;
+    }
+
+    corpo.innerHTML = '<div class="pend">' + pendentes.map(function(r){
+      var mt = MET[r.metodo_pagamento] || {cor:'#5B6B82', rot:r.metodo_pagamento || 'sem método'};
+      var st = CAT[r.categoria];
+      return '<div class="item">' +
+        '<div class="n">' + esc(r.cliente || '—') + '</div>' +
+        '<div class="e">' + esc(r.email || '') + '</div>' +
+        '<div class="i">' +
+          (st ? '<span class="tag" style="background:'+st.cor+'1A;color:'+st.cor+'">'+st.rot+'</span>' : '') +
+          '<span class="tag" style="background:'+mt.cor+'1A;color:'+mt.cor+'">'+esc(mt.rot)+'</span>' +
+          '<span>' + brl(r.valor) + '</span>' +
+          (r.data_referencia ? '<span>último ' + esc(brData(r.data_referencia)) + '</span>' : '') +
+          (r.proxima_fatura ? '<span>cobra ' + esc(brData(r.proxima_fatura)) + '</span>' : '') +
+        '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function drawEvo(){
+    var leg = document.getElementById('evoLegend');
+    leg.innerHTML = CAT_ORDEM.map(function(c){
+      return '<span><i style="background:'+CAT[c].cor+'"></i>'+CAT[c].rot+'</span>';
     }).join('');
-    Array.prototype.forEach.call(el.querySelectorAll('.item'), function(b){
-      b.onclick = function(){ abrirFicha(b.dataset.id); };
+
+    var stats = meses.map(function(m){ return statsFor(m); });
+
+    // mês selecionado fica sólido, os outros esmaecem
+    function cores(cor){
+      return meses.map(function(m){ return (!mesSel || m === mesSel) ? cor : cor + '38'; });
+    }
+
+    var datasets = [
+      {label:'Novos',       data:stats.map(function(s){return s.novos;}),        backgroundColor:cores(CAT.NOVO.cor)},
+      {label:'Retidos',     data:stats.map(function(s){return s.retidos;}),      backgroundColor:cores(CAT.RETIDO.cor)},
+      {label:'Recuperados', data:stats.map(function(s){return s.recuperados;}),  backgroundColor:cores(CAT.RECUPERADO.cor)},
+      {label:'Churn',       data:stats.map(function(s){return -s.churn;}),       backgroundColor:cores(CAT.CHURN.cor)}
+    ];
+
+    if(chartEvo) chartEvo.destroy();
+    chartEvo = new Chart(document.getElementById('evoChart').getContext('2d'), {
+      type:'bar',
+      data:{ labels: meses.map(label), datasets: datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        onClick:function(evt, els){
+          if(!els.length) return;
+          var m = meses[els[0].index];
+          mesSel = (mesSel === m) ? '' : m;
+          syncChips(); render();
+        },
+        onHover:function(evt, els){ evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+        scales:{
+          x:{ stacked:true, grid:{display:false}, border:{color:C.rule},
+              ticks:{font:{family:"'IBM Plex Mono'",size:11}, color:C.ink} },
+          y:{ stacked:true, grid:{color:'#EDF1F6'}, border:{display:false},
+              ticks:{font:{family:"'IBM Plex Mono'",size:11}, color:'#5B6B82',
+                     callback:function(v){ return Math.abs(v); }} }
+        },
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#0F1E33', padding:10, cornerRadius:3,
+            titleFont:{family:"'IBM Plex Sans'"}, bodyFont:{family:"'IBM Plex Mono'"},
+            callbacks:{ label:function(ctx){ return ' ' + ctx.dataset.label + ': ' + Math.abs(ctx.parsed.y); } }
+          }
+        },
+        animation:{duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 420}
+      }
     });
   }
 
-  function montarCabecalho(){
+  function drawPies(s){
+    var comp = [s.novos, s.retidos, s.recuperados, s.churn];
+    chartTipo = swap(chartTipo, 'pieTipo', {
+      labels: CAT_ORDEM.map(function(c){ return CAT[c].rot; }),
+      datasets:[{data:comp, backgroundColor:CAT_ORDEM.map(function(c){ return CAT[c].cor; }), borderColor:'#fff', borderWidth:2}]
+    });
+
+    var t = document.getElementById('pie2Title');
+    var h = document.getElementById('pie2Hint');
+
+    if(pie2Mode === 'metodo'){
+      var mp = metodoBreakdown();
+      t.textContent = 'Método de pagamento';
+      h.textContent = mp.labels.length
+        ? 'Faturas pagas por forma de pagamento.'
+        : 'Sem faturas pagas neste recorte.';
+      chartFluxo = swap(chartFluxo, 'pieFluxo', {
+        labels: mp.labels,
+        datasets:[{data:mp.data, backgroundColor:mp.colors, borderColor:'#fff', borderWidth:2}]
+      });
+    } else if(pie2Mode === 'ticket'){
+      var tk = ticketBreakdown();
+      t.textContent = 'Faturas por ticket';
+      h.textContent = tk.labels.length
+        ? 'Distribuição das faturas pagas por valor cobrado.'
+        : 'Sem faturas pagas neste recorte.';
+      chartFluxo = swap(chartFluxo, 'pieFluxo', {
+        labels: tk.labels,
+        datasets:[{data:tk.data, backgroundColor:tk.colors, borderColor:'#fff', borderWidth:2}]
+      });
+    } else {
+      t.textContent = 'Origem do pagamento';
+      h.textContent = s.fora
+        ? s.fora + ' fatura(s) sem cobrança registrada no Stripe.'
+        : 'Todas as faturas pagas passaram pelo Stripe.';
+      chartFluxo = swap(chartFluxo, 'pieFluxo', {
+        labels:['Dentro do Stripe','Fora do Stripe'],
+        datasets:[{data:[s.dentro, s.fora], backgroundColor:[C.ink, C.fora], borderColor:'#fff', borderWidth:2}]
+      });
+    }
+  }
+
+  // agrupa as faturas pagas por método de pagamento
+  function metodoBreakdown(){
+    var pagos = (mesSel ? base().filter(function(r){return r.mes===mesSel;}) : base())
+                .filter(function(r){return r.tipo==='PAGO' && r.metodo_pagamento;});
+    var mapa = {};
+    pagos.forEach(function(r){ mapa[r.metodo_pagamento] = (mapa[r.metodo_pagamento]||0) + 1; });
+    var chaves = Object.keys(mapa).sort(function(a,b){ return mapa[b]-mapa[a]; });
+    return {
+      labels: chaves.map(function(k){ return (MET[k]||{}).rot || k; }),
+      data:   chaves.map(function(k){ return mapa[k]; }),
+      colors: chaves.map(function(k,i){ return (MET[k]||{}).cor || TICKET_COLORS[i % TICKET_COLORS.length]; })
+    };
+  }
+
+  // agrupa as faturas pagas por valor; acima de 6 faixas, junta o resto
+  function ticketBreakdown(){
+    var pagos = (mesSel ? base().filter(function(r){return r.mes===mesSel;}) : base())
+                .filter(function(r){return r.tipo==='PAGO';});
+    var mapa = {};
+    pagos.forEach(function(r){
+      var k = r.valor.toFixed(2);
+      mapa[k] = (mapa[k]||0) + 1;
+    });
+    var pares = Object.keys(mapa).map(function(k){ return {v:parseFloat(k), n:mapa[k]}; })
+                      .sort(function(a,b){ return b.n - a.n; });
+    var top = pares.slice(0,6);
+    var resto = pares.slice(6).reduce(function(a,p){ return a + p.n; }, 0);
+    var labels = top.map(function(p){ return brl(p.v); });
+    var data   = top.map(function(p){ return p.n; });
+    if(resto){ labels.push('Outros'); data.push(resto); }
+    return {
+      labels: labels,
+      data: data,
+      colors: labels.map(function(_,i){ return TICKET_COLORS[i % TICKET_COLORS.length]; })
+    };
+  }
+
+  function swap(chart, id, data){
+    if(chart) chart.destroy();
+    var total = data.datasets[0].data.reduce(function(a,b){return a+b;},0);
+    var cv = document.getElementById(id);
+    if(!total){
+      var ctx0 = cv.getContext('2d');
+      ctx0.clearRect(0,0,cv.width,cv.height);
+      return null;
+    }
+    return new Chart(cv.getContext('2d'), {type:'pie', data:data, options:pieOpts});
+  }
+
+  // ---------- tabela ----------
+  function buildHead(){
     var tr = document.getElementById('thead');
     tr.innerHTML = '';
     COLS.forEach(function(c){
       var th = document.createElement('th');
       th.textContent = c.t;
+      th.innerHTML += ' <span class="arrow" data-arrow="'+c.k+'"></span>';
       th.onclick = function(){
         if(sortKey === c.k) sortDir = -sortDir; else { sortKey = c.k; sortDir = 1; }
-        tabela();
+        drawTable();
       };
       tr.appendChild(th);
     });
   }
 
-  function filtrados(){
-    var g = document.getElementById('fGrupo').value;
-    var al = document.getElementById('fAlerta').value;
-    var me = document.getElementById('fMetodo').value;
+  function currentRows(){
+    var tipo = document.getElementById('fTipo').value;
+    var met  = document.getElementById('fMetodo').value;
     var q = document.getElementById('fBusca').value.trim().toLowerCase();
-    return clientes.filter(function(c){
-      if(g === 'ativos' && c.nunca_pagou) return false;
-      if(g === 'nunca' && !c.nunca_pagou) return false;
-      if(al && c.alerta !== al) return false;
-      if(me && c.metodo_pagamento !== me) return false;
-      if(q && (c.cliente + ' ' + c.email).toLowerCase().indexOf(q) === -1) return false;
+    return base().filter(function(r){
+      if(mesSel && r.mes !== mesSel) return false;
+      if(tipo && r.categoria !== tipo) return false;
+      if(met && r.metodo_pagamento !== met) return false;
+      if(q){
+        var hay = (r.cliente+' '+r.email+' '+r.invoice_id+' '+r.customer_id).toLowerCase();
+        if(hay.indexOf(q) === -1) return false;
+      }
       return true;
     });
   }
 
-  function tabela(){
-    var lista = filtrados().slice();
-    var col = COLS.filter(function(c){return c.k===sortKey;})[0] || COLS[0];
-    lista.sort(function(a,b){
-      var x=a[sortKey], y=b[sortKey];
+  function drawTable(){
+    var list = currentRows().slice();
+    var col = COLS.filter(function(c){return c.k===sortKey;})[0] || COLS[2];
+    list.sort(function(a,b){
+      var x = a[sortKey], y = b[sortKey];
       if(col.num) return (x-y)*sortDir;
       return String(x).localeCompare(String(y),'pt-BR')*sortDir;
     });
 
+    Array.prototype.forEach.call(document.querySelectorAll('[data-arrow]'), function(el){
+      el.textContent = el.dataset.arrow === sortKey ? (sortDir>0?'▲':'▼') : '';
+    });
+
     var tb = document.getElementById('tbody');
-    if(!lista.length){
-      tb.innerHTML = '<tr><td colspan="'+COLS.length+'" style="padding:34px;text-align:center;color:#5B6B82">Nenhum cliente com esses filtros.</td></tr>';
+    if(!list.length){
+      tb.innerHTML = '<tr><td colspan="'+COLS.length+'" style="padding:34px;text-align:center;color:#5B6B82">Nenhum registro com esses filtros. Limpe a busca ou escolha outro mês.</td></tr>';
     } else {
-      tb.innerHTML = lista.map(function(c){
-        return '<tr data-id="'+esc(c.customer_id)+'">' + COLS.map(function(col){
-          return '<td class="'+(col.cls||'')+'">'+celula(c,col)+'</td>';
+      tb.innerHTML = list.map(function(r){
+        return '<tr>' + COLS.map(function(c){
+          return '<td class="'+(c.cls||'')+'">'+cell(r,c)+'</td>';
         }).join('') + '</tr>';
       }).join('');
-      Array.prototype.forEach.call(tb.querySelectorAll('tr'), function(tr){
-        tr.onclick = function(){ abrirFicha(tr.dataset.id); };
-      });
     }
-    document.getElementById('contagem').textContent = lista.length + ' clientes';
+
+    var porCat = CAT_ORDEM.map(function(c){
+      var n = list.filter(function(r){return r.categoria===c;}).length;
+      return n ? n + ' ' + CAT[c].rot.toLowerCase() : null;
+    }).filter(Boolean);
+    document.getElementById('tblCount').textContent =
+      list.length + ' linhas' + (porCat.length ? ' · ' + porCat.join(' · ') : '');
+    document.getElementById('footNote').textContent =
+      'Churn usa a data do último pagamento, feito no mês anterior.';
   }
 
-  function celula(c, col){
-    var v = c[col.k];
-    if(col.k === 'cliente') return esc(c.cliente) + '<div class="email">'+esc(c.email)+'</div>';
-    if(col.k === 'plano') return '<span class="pill '+c.plano+'">'+c.plano+'</span>';
-    if(col.k === 'alerta') return c.alerta ? '<span class="pill '+severidade(c)+'">'+esc(c.alerta)+'</span>' : '<span class="muted">—</span>';
-    if(col.k === 'metodo_pagamento') return MET[c.metodo_pagamento] || c.metodo_pagamento;
-    if(col.k === 'proximo_toque'){
-      var atr = c.atraso_toque;
-      var cor = atr > 0 ? 'risco' : atr === 0 ? 'A' : 'neutro';
-      return '<span class="pill '+cor+'">'+esc(c.proximo_toque)+'</span>';
+  function cell(r, c){
+    var v = r[c.k];
+    if(c.k === 'categoria'){
+      var cat = r.categoria || 'RETIDO';
+      var meta = CAT[cat] || {cor:'#5B6B82', rot:cat};
+      return '<span class="tag" style="background:'+meta.cor+'1A;color:'+meta.cor+'">'+cat+'</span>';
     }
-    if(col.k === 'dias_ate_renovacao') return v + 'd';
-    return (v === '' || v === null) ? '<span class="muted">—</span>' : esc(String(v));
+    if(c.k === 'cliente'){
+      var flag = r.fluxo_pagamento === 'fora_do_stripe' ? '<span class="flag">fora do stripe</span>' : '';
+      return esc(r.cliente || '—') + flag + '<div class="email">' + esc(r.email||'') + '</div>';
+    }
+    if(c.k === 'metodo_pagamento'){
+      if(!r.metodo_pagamento) return '<span class="muted">—</span>';
+      var mt = MET[r.metodo_pagamento] || {cor:'#5B6B82', rot:r.metodo_pagamento};
+      var band = r.bandeira ? '<div class="email">' + esc(r.bandeira) + '</div>' : '';
+      return '<span class="tag" style="background:'+mt.cor+'1A;color:'+mt.cor+'">'+mt.rot+'</span>' + band;
+    }
+    if(c.k === 'invoice_id') return v ? '<span title="'+esc(v)+'">'+esc(v.slice(0,14))+'…</span>' : '<span class="muted">—</span>';
+    if(c.k === 'valor') return brl(r.valor);
+    if(c.data) return v ? esc(brData(v)) : '<span class="muted">—</span>';
+    return v ? esc(v) : '<span class="muted">—</span>';
   }
 
   function esc(s){
-    return String(s == null ? '' : s).replace(/[&<>"]/g, function(m){
+    return String(s).replace(/[&<>"]/g, function(m){
       return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];
     });
   }
 
-  // ---------- ficha ----------
-  var overlay = document.getElementById('overlay');
-  document.getElementById('fecharFicha').onclick = fecharFicha;
-  overlay.onclick = function(e){ if(e.target === overlay) fecharFicha(); };
-  document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && !overlay.hidden) fecharFicha(); });
-  function fecharFicha(){ overlay.hidden = true; atual = null; render(); }
+  document.getElementById('fTipo').onchange = drawTable;
+  document.getElementById('fMetodo').onchange = drawTable;
+  document.getElementById('fTeste').onchange = function(){ buildStrip(); render(); };
+  document.getElementById('fBusca').oninput = drawTable;
 
-  function abrirFicha(id){
-    var c = clientes.filter(function(x){return x.customer_id === id;})[0];
-    if(!c) return;
-    atual = c;
-    var p = progDe(c.customer_id);
+  Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function(b){
+    b.onclick = function(){
+      pie2Mode = b.dataset.mode;
+      Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function(x){
+        x.setAttribute('aria-pressed', String(x.dataset.mode === pie2Mode));
+      });
+      drawPies(statsFor(mesSel));
+    };
+  });
 
-    document.getElementById('fichaNome').textContent = c.cliente;
-    document.getElementById('fichaEmail').textContent = c.email + (c.telefone ? ' · ' + c.telefone : '');
-    document.getElementById('fichaPills').innerHTML =
-      '<span class="pill '+c.plano+'">Plano '+c.plano+'</span>' +
-      '<span class="pill neutro">Dia '+c.dia_do_ciclo+' do ciclo</span>' +
-      '<span class="pill neutro">'+(MET[c.metodo_pagamento]||c.metodo_pagamento)+'</span>' +
-      (c.alerta ? '<span class="pill '+severidade(c)+'">'+esc(c.alerta)+'</span>' : '');
-
-    var etapas = PLAYBOOK[c.plano];
-    var html = '';
-
-    html += '<div class="bloco"><h4>Conta</h4><div class="dados">' +
-      dado('Meses pagos', c.meses_pagos) +
-      dado('Total pago', brl(c.total_pago)) +
-      dado('Último pagamento', c.ultimo_pagamento || '—') +
-      dado('Renova em', c.dias_ate_renovacao + ' dias') +
-      dado('Cliente desde', c.assinou_em || '—') +
-      (c.faturas_abertas ? dado('Em aberto', brl(c.valor_em_aberto) + (c.dias_de_atraso != null ? ' · ' + c.dias_de_atraso + 'd' : '')) : '') +
-      '</div><div class="contato">' +
-      '<button class="btn ghost" data-copiar="'+esc(c.email)+'">Copiar email</button>' +
-      (c.telefone ? '<button class="btn ghost" data-copiar="'+esc(c.telefone)+'">Copiar telefone</button>' : '') +
-      '</div></div>';
-
-    html += '<div class="bloco"><h4>Trilha do ciclo — início em ' + (c.ciclo_inicio || '—') + '</h4>';
-    etapas.forEach(function(e){
-      var feita = !!p.feitas[chaveEtapa(c, e.d)];
-      var cls = feita ? 'feita' : (e.d <= c.dia_do_ciclo ? 'atual' : 'futura');
-      var quando = e.d <= c.dia_do_ciclo ? ('D'+e.d) : ('em ' + (e.d - c.dia_do_ciclo) + 'd');
-      html += '<div class="etapa '+cls+'">' +
-        '<button class="marca" data-dia="'+e.d+'" aria-pressed="'+feita+'" ' +
-          'aria-label="Marcar D'+e.d+'">'+(feita ? '✓' : e.d)+'</button>' +
-        '<div class="txt"><div class="tit">D'+e.d+' · '+esc(e.t)+'</div>' +
-        '<div class="obj">'+esc(e.o)+'</div></div>' +
-        '<div class="quando">'+quando+'</div></div>';
-    });
-    html += '</div>';
-
-    html += '<div class="bloco"><h4>Anotações</h4>' +
-      '<textarea id="nota" placeholder="Registre o que foi conversado, objeções, próximos passos...">' +
-      esc(p.nota || '') + '</textarea></div>';
-
-    document.getElementById('fichaCorpo').innerHTML = html;
-    overlay.hidden = false;
-
-    var corpo = document.getElementById('fichaCorpo');
-    Array.prototype.forEach.call(corpo.querySelectorAll('.marca'), function(b){
-      b.onclick = function(){
-        var k = chaveEtapa(c, parseInt(b.dataset.dia,10));
-        if(p.feitas[k]) delete p.feitas[k]; else p.feitas[k] = new Date().toISOString().slice(0,10);
-        salvarProgresso();
-        calcularToque(c);
-        abrirFicha(c.customer_id);
-      };
-    });
-    Array.prototype.forEach.call(corpo.querySelectorAll('[data-copiar]'), function(b){
-      b.onclick = function(){
-        navigator.clipboard.writeText(b.dataset.copiar).then(function(){
-          var antes = b.textContent; b.textContent = 'Copiado';
-          setTimeout(function(){ b.textContent = antes; }, 1400);
-        });
-      };
-    });
-    var nota = document.getElementById('nota');
-    nota.oninput = function(){ p.nota = nota.value; salvarProgresso(); };
-  }
-
-  function dado(rot, val){
-    return '<div class="dado"><div class="r">'+rot+'</div><div class="d">'+esc(String(val))+'</div></div>';
-  }
-
-  // ---------- exportar / importar progresso ----------
-  document.getElementById('exportProg').onclick = function(){
-    var blob = new Blob([JSON.stringify(progresso, null, 2)], {type:'application/json'});
+  // ---------- exportar ----------
+  document.getElementById('exportBtn').onclick = function(){
+    var list = currentRows();
+    if(!list.length){ alert('Não há linhas para exportar com os filtros atuais.'); return; }
+    var keys = ['mes','tipo','categoria','cliente','email','data_referencia','valor','currency','metodo_pagamento','bandeira','fluxo_pagamento','proxima_fatura','status_assinatura','vencimento_aberto','data_finalizacao','data_baixa','invoice_id','customer_id'];
+    var csv = keys.join(',') + '\n' + list.map(function(r){
+      return keys.map(function(k){ return '"' + String(r[k]).replace(/"/g,'""') + '"'; }).join(',');
+    }).join('\n');
+    var blob = new Blob(['\ufeff'+csv], {type:'text/csv;charset=utf-8'});
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'cs-progresso-' + new Date().toISOString().slice(0,10) + '.json';
+    a.download = 'assinantes-churn' + (mesSel ? '-'+mesSel : '') + '.csv';
     a.click();
     URL.revokeObjectURL(a.href);
   };
-  document.getElementById('importProg').onclick = function(){ document.getElementById('progInput').click(); };
-  document.getElementById('progInput').onchange = function(e){
-    var f = e.target.files[0];
-    if(!f) return;
-    var fr = new FileReader();
-    fr.onload = function(ev){
-      try{
-        var dados = JSON.parse(ev.target.result);
-        Object.keys(dados).forEach(function(id){
-          if(!progresso[id]){ progresso[id] = dados[id]; return; }
-          Object.assign(progresso[id].feitas, dados[id].feitas || {});
-          if(dados[id].nota && !progresso[id].nota) progresso[id].nota = dados[id].nota;
-        });
-        salvarProgresso();
-        clientes.forEach(calcularToque);
-        render();
-        alert('Progresso restaurado e combinado com o que já existia neste navegador.');
-      }catch(err){ alert('Arquivo de progresso inválido.'); }
-    };
-    fr.readAsText(f);
-  };
-
-  ['fGrupo','fAlerta','fMetodo'].forEach(function(id){
-    document.getElementById(id).onchange = tabela;
-  });
-  document.getElementById('fBusca').oninput = tabela;
-
-  carregarProgresso();
 })();
 </script>
 </body>

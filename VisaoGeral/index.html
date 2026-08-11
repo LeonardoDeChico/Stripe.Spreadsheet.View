@@ -320,7 +320,7 @@
           <option value="">Todos os métodos</option>
         </select>
         <input type="search" id="fBusca" placeholder="Buscar cliente, email ou fatura" aria-label="Buscar">
-        <label class="check"><input type="checkbox" id="fTeste" checked> Ocultar contas de teste</label>
+        <label class="check"><input type="checkbox" id="fTeste" checked> Ocultar contas internas e de teste</label>
         <button class="file-btn" id="exportBtn" style="background:#3A4C64">Baixar filtrado</button>
       </div>
     </div>
@@ -567,9 +567,16 @@
 
   function uniq(a){ return Array.from(new Set(a.filter(Boolean))); }
 
+  // Contas da própria empresa. Adicione novos emails aqui.
+  var CONTAS_INTERNAS = [
+    'solucoes.amf@gmail.com'
+  ];
+
   // Heurística para conta de teste. Não apaga nada — só permite ocultar.
   var RE_TESTE = /(teste|test[_\-. ]|@teste\.|dopix|pix@|forum\.com|extendido\.com|heavty|dyleris|manupay|fivejm)/i;
   function ehTeste(r){
+    var email = (r.email || '').toLowerCase();
+    if(CONTAS_INTERNAS.indexOf(email) > -1) return true;
     return RE_TESTE.test((r.cliente || '') + ' ' + (r.email || ''));
   }
 

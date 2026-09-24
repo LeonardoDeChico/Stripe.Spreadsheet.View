@@ -158,8 +158,14 @@
   .pend .i{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);
     margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
   .tudo-pago{padding:22px 4px;color:var(--pago);font-size:13.5px}
+  .subgrupo{display:flex;justify-content:space-between;gap:10px;align-items:baseline;
+    flex-wrap:wrap;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--rule)}
+  .subgrupo:first-child{margin-top:4px}
+  .subgrupo .t{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase}
+  .subgrupo .a{font-size:12.5px;color:var(--ink-soft)}
   .aviso-velho{border-left:3px solid var(--fora);background:#FBF4E7;padding:11px 14px;
-    border-radius:0 4px 4px 0;margin:0 0 14px;font-size:13px;color:#7A5A1E}
+    border-radius:0 4px 4px 0;margin:0 0 6px;font-size:13px;color:#7A5A1E}
   .aviso-velho strong{color:var(--fora)}
   .canvas-box{position:relative;height:262px}
   .canvas-box.tall{height:300px}
@@ -318,6 +324,8 @@
           <option value="CHURN">Churn</option>
           <option value="AGUARDANDO">Aguardando</option>
           <option value="VENCIDO">Vencidos</option>
+          <option value="A_FATURAR">A faturar</option>
+          <option value="EM_DIA">Em dia</option>
         </select>
         <select id="fMetodo" aria-label="Filtrar por método de pagamento">
           <option value="">Todos os métodos</option>
@@ -374,8 +382,47 @@
     RECUPERADO: {cor:'#C0872E', rot:'Recuperados'},
     CHURN:      {cor:'#B4462F', rot:'Churn'},
     AGUARDANDO: {cor:'#C0872E', rot:'Aguardando'},
-    VENCIDO:    {cor:'#B4462F', rot:'Vencido'}
+    VENCIDO:    {cor:'#B4462F', rot:'Vencido'},
+    A_FATURAR:  {cor:'#8A99AC', rot:'A faturar'},
+    EM_DIA:     {cor:'#0E7C66', rot:'Em dia'}
   };
+
+  // Estados pendentes do mês corrente, em ordem de urgência. A ação é o que
+  // muda entre eles — por isso não podem aparecer como uma lista só.
+  var PEND = [
+    {id:'VENCIDO',    acao:'cobrar'},
+    {id:'AGUARDANDO', acao:'fatura emitida, dentro do prazo'},
+    {id:'A_FATURAR',  acao:'cobrança ainda será gerada'}
+  ];
+
+  // Cliente com assinatura ativa e nada em aberto está em dia: não é
+  // pendência, mesmo que o pagamento dele tenha caído em outro dia do mês.
+  //
+  // O SQL a partir da v22 já marca isso como EM_DIA. Para arquivos gerados
+  // por versões anteriores, derivamos aqui pelas mesmas colunas, para não
+  // depender de o usuário ter rodado a consulta nova.
+  function ehPendencia(r){
+    if(r.categoria === 'EM_DIA' || r.tipo === 'EM_DIA' || r.tipo === 'PAGO') return false;
+    if(r.vencimento_aberto) return true;                    // fatura em aberto
+    if(r.status_assinatura === 'past_due') return true;      // cobrança falhou
+    if(r.status_assinatura === 'active' || r.status_assinatura === 'trialing'){
+      return false;                                          // ativo e nada em aberto
+    }
+    return true;
+  }
+
+  // Aplica a mesma regra à categoria, para o arquivo antigo mostrar os
+  // mesmos rótulos do novo.
+  function normalizarCategoria(r){
+    if(r.tipo === 'PAGO' || r.categoria === 'CHURN') return;
+    if(!ehPendencia(r)){ r.categoria = 'EM_DIA'; r.tipo = 'EM_DIA'; return; }
+    if(r.status_assinatura === 'past_due'){ r.categoria = 'VENCIDO'; return; }
+    if(r.vencimento_aberto){
+      var hoje = new Date();
+      var hojeISO = hoje.getFullYear()+'-'+pad(hoje.getMonth()+1)+'-'+pad(hoje.getDate());
+      r.categoria = (r.vencimento_aberto < hojeISO) ? 'VENCIDO' : 'AGUARDANDO';
+    }
+  }
   // A composição e o gráfico de evolução usam só as quatro definitivas.
   // AGUARDANDO é estado transitório do mês corrente e aparece à parte.
   var CAT_ORDEM = ['NOVO','RETIDO','RECUPERADO','CHURN'];
@@ -549,6 +596,7 @@
     rows.forEach(function(r){ r.teste = ehTeste(r); });
 
     derivarCategorias();
+    rows.forEach(normalizarCategoria);
 
     meses = uniq(rows.map(function(r){return r.mes;})).sort();
     mesSel = '';
@@ -638,7 +686,7 @@
 
     strip.appendChild(chip('Todos', '', totalPagantes(), 0, 0));
     stats.forEach(function(s, i){
-      strip.appendChild(chip(label(meses[i]), meses[i], s.pagantes, s.pagantes, s.churn + s.aguardando));
+      strip.appendChild(chip(label(meses[i]), meses[i], s.pagantes, s.pagantes, s.churn + s.aguardando + s.vencidos));
     });
     syncChips();
   }
@@ -681,8 +729,6 @@
     var sub = mes ? b.filter(function(r){return r.mes===mes;}) : b;
     var pagos = sub.filter(function(r){return r.tipo==='PAGO';});
     var churns = sub.filter(function(r){return r.tipo==='CHURN';});
-    var pagantesSet = {};
-    pagos.forEach(function(r){ pagantesSet[keyOf(r)] = true; });
     function clientes(cat){
       return uniq(pagos.filter(function(r){return r.categoria===cat;}).map(keyOf)).length;
     }
@@ -690,12 +736,10 @@
       pagantes: uniq(pagos.map(keyOf)).length,
       faturas: pagos.length,
       churn: uniq(churns.map(keyOf)).length,
-      aguardando: uniq(sub.filter(function(r){
-        return r.categoria==='AGUARDANDO' && pagantesSet[keyOf(r)] !== true;
-      }).map(keyOf)).length,
-      vencidos: uniq(sub.filter(function(r){
-        return r.categoria==='VENCIDO' && pagantesSet[keyOf(r)] !== true;
-      }).map(keyOf)).length,
+      aguardando: uniq(sub.filter(function(r){return r.categoria==='AGUARDANDO';}).map(keyOf)).length,
+      vencidos: uniq(sub.filter(function(r){return r.categoria==='VENCIDO';}).map(keyOf)).length,
+      a_faturar: uniq(sub.filter(function(r){return r.categoria==='A_FATURAR';}).map(keyOf)).length,
+      em_dia: uniq(sub.filter(function(r){return r.categoria==='EM_DIA';}).map(keyOf)).length,
       novos: clientes('NOVO'),
       retidos: clientes('RETIDO'),
       recuperados: clientes('RECUPERADO'),
@@ -862,19 +906,14 @@
     var pagaram = uniq(noMes.filter(function(r){ return r.tipo === 'PAGO'; }).map(keyOf));
 
     // No mês corrente o SQL marca como AGUARDANDO ou VENCIDO; no fechado, CHURN.
-    var temAguardando = noMes.some(function(r){ return r.tipo === 'AGUARDANDO'; });
+    var temAguardando = noMes.some(function(r){ return r.tipo === 'AGUARDANDO' || r.tipo === 'EM_DIA'; });
+    var emDia = uniq(noMes.filter(function(r){ return r.tipo === 'EM_DIA'; }).map(keyOf)).length;
     emCurso = emCurso || temAguardando;
 
-    // Blindagem: quem tem pagamento no mês nunca entra como pendente,
-    // mesmo que o arquivo traga uma linha pendente para ele. Sem isso, um
-    // cliente que pagou depois da geração do arquivo, ou uma inconsistência
-    // na origem, faria a mesma pessoa aparecer nos dois lados.
-    var jaPagou = {};
-    pagaram.forEach(function(k){ jaPagou[k] = true; });
-
+    // um registro por cliente pendente, o de maior valor
     var mapa = {};
     noMes.filter(function(r){
-      if(jaPagou[keyOf(r)]) return false;
+      if(!ehPendencia(r)) return false;
       return temAguardando ? r.tipo === 'AGUARDANDO' : r.tipo === 'CHURN';
     }).forEach(function(r){
       var k = keyOf(r);
@@ -883,13 +922,12 @@
     var pendentes = Object.keys(mapa).map(function(k){ return mapa[k]; });
 
     // vencidos primeiro, e dentro de cada grupo o pagamento mais antigo antes
-    var ordem = {VENCIDO:0, AGUARDANDO:1, CHURN:2};
+    var ordem = {VENCIDO:0, AGUARDANDO:1, A_FATURAR:2, CHURN:3};
     pendentes.sort(function(a,b){
       var d = (ordem[a.categoria] || 3) - (ordem[b.categoria] || 3);
       if(d) return d;
       return String(a.data_referencia).localeCompare(String(b.data_referencia));
     });
-    var vencidos = pendentes.filter(function(r){ return r.categoria === 'VENCIDO'; }).length;
 
     var recebido = noMes.filter(function(r){ return r.tipo === 'PAGO'; })
                         .reduce(function(a,r){ return a + r.valor; }, 0);
@@ -901,60 +939,92 @@
               : 'Situação de ' + label(ultimo) + ' — mês fechado';
 
     document.getElementById('mesAtualHint').textContent = emCurso
-      ? 'Aguardando pagamento: pagaram no mês passado e ainda não pagaram neste. Só viram churn quando o mês fechar.'
+      ? 'Só aparece quem tem fatura em aberto ou cobrança falhada no Stripe. Quem está com tudo quitado conta como em dia, mesmo que o pagamento tenha caído em outro dia do mês.'
       : 'Mês já encerrado: quem não pagou é churn confirmado.';
 
+    function contaCat(id){
+      return pendentes.filter(function(r){ return r.categoria === id; }).length;
+    }
+    function chave(id, rot, n){
+      return n ? '<span><i style="background:'+CAT[id].cor+'"></i>' + n + ' ' + rot + '</span>' : '';
+    }
+
     document.getElementById('mesAtualResumo').innerHTML =
-      '<span><i style="background:'+CAT.RETIDO.cor+'"></i>' + pagaram.length + ' de ' + total +
-        ' pagaram · ' + brl(recebido) + '</span>' +
+      '<span><i style="background:'+CAT.RETIDO.cor+'"></i>' + pagaram.length +
+        ' pagaram no mês · ' + brl(recebido) + '</span>' +
       (emCurso
-        ? (vencidos ? '<span><i style="background:'+CAT.VENCIDO.cor+'"></i>' + vencidos + ' vencidos</span>' : '') +
-          '<span><i style="background:'+CAT.AGUARDANDO.cor+'"></i>' +
-            (pendentes.length - vencidos) + ' no prazo · ' + brl(pendente) + '</span>'
+        ? chave('EM_DIA',     'em dia',    emDia) +
+          chave('VENCIDO',    'vencidos',  contaCat('VENCIDO')) +
+          chave('AGUARDANDO', 'no prazo',  contaCat('AGUARDANDO')) +
+          chave('A_FATURAR',  'a faturar', contaCat('A_FATURAR'))
         : '<span><i style="background:'+CAT.CHURN.cor+'"></i>' +
             pendentes.length + ' churn · ' + brl(pendente) + '</span>');
 
-    // Alerta de arquivo velho: quem tinha cobrança prevista entre a data do
-    // arquivo e hoje pode já ter pago sem o painel saber.
     var corpo = document.getElementById('mesAtualCorpo');
+
+    // Arquivo desatualizado: quem tinha cobrança prevista entre a data do
+    // arquivo e hoje pode já ter pago sem o painel saber.
     var hojeISO = hoje.getFullYear()+'-'+pad(hoje.getMonth()+1)+'-'+pad(hoje.getDate());
     var dataArquivo = '';
-    base().forEach(function(r){ if(r.data_referencia > dataArquivo) dataArquivo = r.data_referencia; });
-
+    b.forEach(function(r){ if(r.data_referencia > dataArquivo) dataArquivo = r.data_referencia; });
     var defasados = pendentes.filter(function(r){
       return r.proxima_fatura && r.proxima_fatura <= hojeISO && r.proxima_fatura >= dataArquivo;
-    });
+    }).length;
 
-    var avisoHtml = '';
-    if(emCurso && defasados.length && dataArquivo < hojeISO){
-      avisoHtml = '<div class="aviso-velho"><strong>Arquivo pode estar desatualizado.</strong> ' +
+    var aviso = '';
+    if(emCurso && defasados && dataArquivo && dataArquivo < hojeISO){
+      aviso = '<div class="aviso-velho"><strong>Arquivo pode estar desatualizado.</strong> ' +
         'O pagamento mais recente aqui é de ' + brData(dataArquivo) + ', e hoje é ' + brData(hojeISO) + '. ' +
-        defasados.length + ' cliente(s) desta lista tinham cobrança prevista nesse intervalo e podem já ter pago. ' +
-        'Rode a consulta de novo para confirmar.</div>';
+        defasados + ' cliente(s) tinham cobrança prevista nesse intervalo e podem já ter pago. ' +
+        'Rode a consulta de novo antes de cobrar alguém.</div>';
     }
 
     if(!pendentes.length){
-      corpo.innerHTML = avisoHtml + '<div class="tudo-pago">Todos os clientes do mês anterior já pagaram.</div>';
+      corpo.innerHTML = aviso + '<div class="tudo-pago">Nenhuma pendência: todo cliente ativo está sem fatura em aberto.</div>';
       return;
     }
 
-    corpo.innerHTML = avisoHtml + '<div class="pend">' + pendentes.map(function(r){
+    function cartao(r){
       var mt = MET[r.metodo_pagamento] || {cor:'#5B6B82', rot:r.metodo_pagamento || 'sem método'};
-      var st = CAT[r.categoria];
+      var atrasado = r.proxima_fatura && r.proxima_fatura <= hojeISO;
       return '<div class="item">' +
         '<div class="n">' + esc(r.cliente || '—') + '</div>' +
         '<div class="e">' + esc(r.email || '') + '</div>' +
         '<div class="i">' +
-          (st ? '<span class="tag" style="background:'+st.cor+'1A;color:'+st.cor+'">'+st.rot+'</span>' : '') +
           '<span class="tag" style="background:'+mt.cor+'1A;color:'+mt.cor+'">'+esc(mt.rot)+'</span>' +
           '<span>' + brl(r.valor) + '</span>' +
-          (r.data_referencia ? '<span>último ' + esc(brData(r.data_referencia)) + '</span>' : '') +
           (r.proxima_fatura
-             ? '<span' + (r.proxima_fatura <= hojeISO ? ' style="color:var(--fora);font-weight:500"' : '') +
-               '>cobra ' + esc(brData(r.proxima_fatura)) + '</span>'
-             : '') +
+            ? '<span' + (atrasado ? ' style="color:var(--fora);font-weight:500"' : '') +
+              '>cobra ' + esc(brData(r.proxima_fatura)) + '</span>'
+            : (r.data_referencia ? '<span>último ' + esc(brData(r.data_referencia)) + '</span>' : '')) +
         '</div></div>';
-    }).join('') + '</div>';
+    }
+
+    // No mês fechado é uma lista só de churn; no mês em curso, agrupada por urgência.
+    if(!emCurso){
+      corpo.innerHTML = aviso + '<div class="pend">' + pendentes.map(cartao).join('') + '</div>';
+      return;
+    }
+
+    var html = aviso;
+    PEND.forEach(function(g){
+      var lista = pendentes.filter(function(r){ return r.categoria === g.id; });
+      if(!lista.length) return;
+      var meta = CAT[g.id];
+      html += '<div class="subgrupo">' +
+        '<span class="t" style="color:'+meta.cor+'">' + meta.rot + ' · ' + lista.length + '</span>' +
+        '<span class="a">' + g.acao + '</span></div>' +
+        '<div class="pend">' + lista.map(cartao).join('') + '</div>';
+    });
+    // qualquer estado não previsto continua visível, em vez de sumir
+    var sobra = pendentes.filter(function(r){
+      return ['VENCIDO','AGUARDANDO','A_FATURAR'].indexOf(r.categoria) === -1;
+    });
+    if(sobra.length){
+      html += '<div class="subgrupo"><span class="t">Sem classificação · ' + sobra.length + '</span></div>' +
+              '<div class="pend">' + sobra.map(cartao).join('') + '</div>';
+    }
+    corpo.innerHTML = html;
   }
 
   function drawEvo(){
@@ -1163,15 +1233,8 @@
     }).filter(Boolean);
     document.getElementById('tblCount').textContent =
       list.length + ' linhas' + (porCat.length ? ' · ' + porCat.join(' · ') : '');
-    // A data mais recente do arquivo denuncia CSV velho: se um cliente pagou
-    // depois disso, o painel não tem como saber.
-    var maisRecente = '';
-    base().forEach(function(r){
-      if(r.data_referencia > maisRecente) maisRecente = r.data_referencia;
-    });
     document.getElementById('footNote').textContent =
-      'Churn usa a data do último pagamento, feito no mês anterior.' +
-      (maisRecente ? '  Pagamento mais recente no arquivo: ' + brData(maisRecente) + '.' : '');
+      'Churn usa a data do último pagamento, feito no mês anterior.';
   }
 
   function cell(r, c){
